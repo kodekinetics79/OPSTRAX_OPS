@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Vantelyx API",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/server/Vantelyx.Api/bin/Debug/net8.0/Vantelyx.Api.dll",
+      "cwd": "${workspaceFolder}/server/Vantelyx.Api",
+      "preLaunchTask": "build-api"
+    }
+  ]
+}

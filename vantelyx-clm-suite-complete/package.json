@@ -1,0 +1,16 @@
+{
+  "name": "vantelyx-clm-suite-complete",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Vantelyx CLM - complete AI contract lifecycle management product foundation.",
+  "scripts": {
+    "install:client": "npm --prefix client install",
+    "dev": "npm --prefix client run dev",
+    "dev:9701": "npm --prefix client run dev:9701",
+    "build": "npm --prefix client run build",
+    "preview": "npm --prefix client run preview",
+    "api": "dotnet run --project server/Vantelyx.Api/Vantelyx.Api.csproj",
+    "db:up": "docker compose up -d mysql",
+    "full:up": "docker compose up --build"
+  }
+}
