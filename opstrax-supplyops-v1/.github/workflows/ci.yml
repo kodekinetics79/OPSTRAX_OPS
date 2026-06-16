@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run security
+      - run: npm run build
+      - run: npm test
+      - name: Verify migrations
+        run: OPSTRAX_ALLOW_DEV_CONTEXT=1 node scripts/verify-migration.mjs
+      - name: Install Playwright browser
+        run: npx playwright install chromium --with-deps
+      - name: Browser smoke tests
+        run: OPSTRAX_ALLOW_DEV_CONTEXT=1 node scripts/browser-smoke.mjs
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-screenshots
+          path: dist/screenshots/
+          retention-days: 7

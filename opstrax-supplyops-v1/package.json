@@ -1,0 +1,29 @@
+{
+  "name": "opstrax-supplyops",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "for f in server.js app.js src/*.js tests/*.mjs scripts/*.mjs; do node --check \"$f\"; done",
+    "typecheck": "for f in server.js app.js src/*.js tests/*.mjs scripts/*.mjs; do node --check \"$f\"; done",
+    "security": "npm install --package-lock-only --ignore-scripts >/dev/null 2>&1 && npm audit --audit-level=high --omit=dev && rm -f package-lock.json",
+    "build": "node scripts/build.mjs",
+    "start": "PORT=9899 node server.js",
+    "test": "node --test tests/*.mjs",
+    "check": "node --test tests/*.mjs",
+    "verify-migration": "node scripts/verify-migration.mjs",
+    "seed:production-runtime": "OPSTRAX_VALIDATE_SEED=1 node scripts/seed-production-runtime.mjs",
+    "verify:postgres": "node scripts/verify-postgres.mjs",
+    "verify:storage": "node scripts/verify-storage.mjs",
+    "verify:production-runtime": "node scripts/verify-production-runtime.mjs",
+    "perf-smoke": "OPSTRAX_ALLOW_DEV_CONTEXT=1 node scripts/perf-smoke.mjs",
+    "browser-smoke": "OPSTRAX_ALLOW_DEV_CONTEXT=1 node scripts/browser-smoke.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1070.0",
+    "@aws-sdk/s3-request-presigner": "^3.1070.0",
+    "pg": "^8.21.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.0"
+  }
+}
