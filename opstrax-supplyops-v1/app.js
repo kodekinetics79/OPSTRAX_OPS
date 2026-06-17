@@ -1,15 +1,25 @@
 const persistedPage = typeof localStorage !== 'undefined' ? localStorage.getItem('opstrax.page') : '';
+const persistedPlatformPage = typeof localStorage !== 'undefined' ? localStorage.getItem('opstrax.platform.page') : '';
 const persistedSearch = typeof localStorage !== 'undefined' ? localStorage.getItem('opstrax.search') || '' : '';
+const initialPathname = typeof window !== 'undefined' ? window.location.pathname : '/';
+const initialSurface = initialPathname.startsWith('/platform') ? 'platform' : 'tenant';
 
 export const state = {
+  surface: initialSurface,
   page: persistedPage || 'Command Center',
+  platformPage: persistedPlatformPage || 'Platform Dashboard',
+  platformTenantId: '',
   authMode: 'dev',
   authRequired: false,
   loginUrl: '/auth/login',
   authBootstrap: null,
+  platformAuthBootstrap: null,
   identity: null,
+  platformIdentity: null,
   bootstrap: null,
+  platformBootstrap: null,
   data: null,
+  platformData: null,
   evidenceDetails: {},
   receivingDetails: {},
   exportDetails: {},
@@ -62,6 +72,29 @@ const PAGE_GROUPS = [
     items: ['Admin']
   }
 ];
+
+const PLATFORM_PAGE_GROUPS = [
+  {
+    title: 'Control Plane',
+    items: ['Platform Dashboard', 'Tenant Directory', 'Tenant Detail', 'Subscription & Plans']
+  },
+  {
+    title: 'Governance',
+    items: ['Module Entitlements', 'User & Seats', 'Support Sessions', 'Security & Audit', 'System Health']
+  }
+];
+
+const PLATFORM_PAGE_TITLES = {
+  'Platform Dashboard': 'Platform Dashboard',
+  'Tenant Directory': 'Tenant Directory',
+  'Tenant Detail': 'Tenant Detail',
+  'Subscription & Plans': 'Subscription & Plans',
+  'Module Entitlements': 'Module Entitlements',
+  'User & Seats': 'User & Seats',
+  'Support Sessions': 'Support Sessions',
+  'Security & Audit': 'Security & Audit',
+  'System Health': 'System Health'
+};
 
 const PAGE_NAV_LABELS = {
   'Internal Storefront': 'Request Center',
@@ -383,6 +416,79 @@ export function visibleNavigationGroups() {
         title: PAGE_NAV_LABELS[page] || page,
         note: SECTION_NOTE[page] || '',
         active: state.page === page
+      }));
+    return { title: group.title, items };
+  }).filter((group) => group.items.length > 0);
+}
+
+function currentSurface() {
+  return state.surface || (typeof window !== 'undefined' && window.location.pathname.startsWith('/platform') ? 'platform' : 'tenant');
+}
+
+function platformIdentity() {
+  return state.platformIdentity || state.platformBootstrap || null;
+}
+
+function platformCapabilities() {
+  return new Set(platformIdentity()?.capabilities || []);
+}
+
+function canPlatform(capability) {
+  return platformCapabilities().has('*') || platformCapabilities().has(capability);
+}
+
+function platformRoleLabel(roleKey) {
+  return (
+    {
+      PLATFORM_OWNER: 'Platform Owner',
+      PLATFORM_ADMIN: 'Platform Admin',
+      PLATFORM_SUPPORT: 'Platform Support',
+      PLATFORM_BILLING: 'Platform Billing',
+      PLATFORM_SECURITY: 'Platform Security',
+      PLATFORM_AUDITOR: 'Platform Auditor'
+    }[roleKey] || 'Platform Viewer'
+  );
+}
+
+function platformPageFromPathname(pathname = (typeof window !== 'undefined' ? window.location.pathname : '/platform')) {
+  if (!pathname.startsWith('/platform')) return 'Platform Dashboard';
+  if (pathname === '/platform' || pathname === '/platform/' || pathname === '/platform/dashboard' || pathname === '/platform/login') return 'Platform Dashboard';
+  if (pathname.startsWith('/platform/tenants/')) return 'Tenant Detail';
+  if (pathname === '/platform/tenants') return 'Tenant Directory';
+  if (pathname === '/platform/subscriptions') return 'Subscription & Plans';
+  if (pathname === '/platform/modules') return 'Module Entitlements';
+  if (pathname === '/platform/users') return 'User & Seats';
+  if (pathname === '/platform/support') return 'Support Sessions';
+  if (pathname === '/platform/security') return 'Security & Audit';
+  if (pathname === '/platform/health') return 'System Health';
+  return 'Platform Dashboard';
+}
+
+function platformPathForPage(page, tenantId = state.platformTenantId || '') {
+  if (page === 'Tenant Directory') return '/platform/tenants';
+  if (page === 'Tenant Detail') return tenantId ? `/platform/tenants/${tenantId}` : '/platform/tenants';
+  if (page === 'Subscription & Plans') return '/platform/subscriptions';
+  if (page === 'Module Entitlements') return '/platform/modules';
+  if (page === 'User & Seats') return '/platform/users';
+  if (page === 'Support Sessions') return '/platform/support';
+  if (page === 'Security & Audit') return '/platform/security';
+  if (page === 'System Health') return '/platform/health';
+  return '/platform/dashboard';
+}
+
+export function visiblePlatformNavigationGroups() {
+  const query = state.search.trim().toLowerCase();
+  return PLATFORM_PAGE_GROUPS.map((group) => {
+    const items = group.items
+      .filter((page) => {
+        const label = PLATFORM_PAGE_TITLES[page] || page;
+        return !query || `${label} ${page}`.toLowerCase().includes(query);
+      })
+      .map((page) => ({
+        page,
+        title: PLATFORM_PAGE_TITLES[page] || page,
+        note: '',
+        active: state.platformPage === page
       }));
     return { title: group.title, items };
   }).filter((group) => group.items.length > 0);
@@ -2554,6 +2660,761 @@ function dataReadyHtml(model) {
   return `<div class="landing-grid">${cards.map((item) => landingCard(item)).join('')}</div>`;
 }
 
+function platformSummary() {
+  return state.platformData?.summary || {};
+}
+
+function platformTenants() {
+  return state.platformData?.tenants || [];
+}
+
+function selectedPlatformTenant() {
+  if (!state.platformTenantId) return platformTenants()[0] || null;
+  return state.platformData?.tenantDetail?.tenant || platformTenants().find((tenant) => tenant.id === state.platformTenantId) || null;
+}
+
+function platformShellKpis() {
+  const summary = platformSummary();
+  const cards = [
+    ['Workspaces', summary.totalTenants ?? 0, 'All managed workspaces'],
+    ['Active Plans', summary.activeTenants ?? 0, 'Commercial plans in force'],
+    ['Restricted', summary.restrictedTenants ?? 0, 'Limited module surfaces'],
+    ['Support Requested', summary.requestedSupportSessions ?? 0, 'Waiting on support action'],
+    ['Support Active', summary.activeSupportSessions ?? 0, 'Open platform support'],
+    ['Healthy', summary.healthyTenants ?? 0, 'Configured platform posture'],
+    ['Security Events', summary.securityEvents ?? 0, 'Recorded in control plane'],
+    ['Audit Events', summary.auditEvents ?? 0, 'Platform activity log']
+  ];
+  return `
+    <section class="kpi-grid shell-kpi-grid">
+      ${cards.map(([label, value, detail]) => `
+        <article class="panel kpi">
+          <div class="kpi-label">${h(label)}</div>
+          <div class="kpi-value">${h(value)}</div>
+          <div class="kpi-detail">${h(detail)}</div>
+        </article>
+      `).join('')}
+    </section>
+  `;
+}
+
+function platformSidebar() {
+  const groups = visiblePlatformNavigationGroups();
+  const identity = platformIdentity() || {};
+  const summary = platformSummary();
+  return `
+    <aside class="sidebar platform-sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" role="img" focusable="false" aria-hidden="true">
+            <defs>
+              <linearGradient id="opstraxPlatformMarkShell" x1="8" y1="8" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#9be7ff"/>
+                <stop offset="0.5" stop-color="#5b8cff"/>
+                <stop offset="1" stop-color="#14b8a6"/>
+              </linearGradient>
+            </defs>
+            <rect x="8" y="8" width="32" height="32" rx="12" fill="rgba(255,255,255,.05)" stroke="url(#opstraxPlatformMarkShell)" stroke-width="1.4"/>
+            <path d="M14 25.5C17 19 22 15 28.7 15c4.2 0 7.4 1.4 9.9 4.2" fill="none" stroke="url(#opstraxPlatformMarkShell)" stroke-width="2.1" stroke-linecap="round"/>
+            <path d="M34 22.5C31 29 26 33 19.3 33c-4.2 0-7.4-1.4-9.9-4.2" fill="none" stroke="url(#opstraxPlatformMarkShell)" stroke-width="2.1" stroke-linecap="round" opacity=".92"/>
+            <circle cx="24" cy="24" r="4.1" fill="url(#opstraxPlatformMarkShell)"/>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">OpsTrax</div>
+          <div class="brand-subtitle">Platform Control Plane</div>
+        </div>
+      </div>
+      <div class="session-card">
+        <label>Control plane</label>
+        <div class="session-readout">
+          <strong>${h(identity.user_name || identity.user?.name || 'Platform operator')}</strong>
+          <span>${h(identity.user_email || identity.user?.email || '')} · ${h(platformRoleLabel(identity.user?.role_key || identity.role?.key || 'PLATFORM_ADMIN'))}</span>
+          <small>${h(summary.totalTenants ?? 0)} tenants · ${h(summary.openSupportSessions ?? 0)} requested or active support sessions</small>
+        </div>
+        <div class="shell-chips">
+          <span class="chip">Separate session</span>
+          <span class="chip">Audit trail enabled</span>
+        </div>
+      </div>
+      ${groups.length ? groups.map((group) => `
+        <div class="nav-group">
+          <div class="nav-title">${h(group.title)}</div>
+          ${group.items.map((item) => `
+            <button class="nav-item ${item.active ? 'active' : ''}" data-page="${h(item.page)}" type="button">
+              <span class="nav-dot"></span>
+              <span class="nav-label">${h(item.title)}</span>
+            </button>
+          `).join('')}
+        </div>
+      `).join('') : `<div class="empty-state nav-empty">No platform navigation is available.</div>`}
+      <div class="sidebar-footer">
+        <div class="compliance-pill">Platform Audit Trail · Support Sessions</div>
+        <div class="footer-note">SaaS owner controls stay isolated from tenant operational data.</div>
+      </div>
+    </aside>
+  `;
+}
+
+function platformTopbar() {
+  const identity = platformIdentity() || {};
+  const summary = platformSummary();
+  const tenant = selectedPlatformTenant();
+  return `
+    <header class="topbar shell-topbar">
+      <div class="topbar-title">
+        <div class="eyebrow">Platform Control Plane</div>
+        <h1>${h(PLATFORM_PAGE_TITLES[state.platformPage] || state.platformPage)}</h1>
+        <p class="topbar-summary">Control plane oversight for tenant plans, support sessions, security events, billing posture, and platform audit trails.</p>
+        <div class="shell-context">
+          <span class="chip">Platform session</span>
+          <span class="chip">${h(identity.user_name || identity.user?.name || 'Platform operator')}</span>
+          <span class="chip">${h(tenant?.name || 'No tenant selected')}</span>
+        </div>
+      </div>
+      <div class="command-bar">
+        <label class="search-shell">
+          <span class="visually-hidden">Search tenants and platform events</span>
+          <input id="globalSearch" value="${h(state.search)}" placeholder="Search tenants, plans, events" autocomplete="off" />
+        </label>
+        <button class="icon-button" data-action="refresh" type="button" aria-label="Refresh control plane">
+          <span aria-hidden="true">↻</span>
+        </button>
+        <span class="status-pill status-ok">Control plane active</span>
+        ${state.platformBootstrap?.session ? `
+          <details class="session-menu">
+            <summary>${h(identity.user_name || identity.user?.name || 'Session')}</summary>
+            <div class="session-menu-panel">
+              <div><strong>${h(identity.user_email || identity.user?.email || '')}</strong></div>
+              <div class="muted">${h(identity.user?.role_key || identity.role?.key || '')} · Platform</div>
+              <div class="muted">${h(identity.session?.provider || state.platformBootstrap?.session?.provider || 'platform-demo')} · Separate session</div>
+              <button class="ghost" data-action="platform-logout" type="button">Sign out</button>
+            </div>
+          </details>
+        ` : ''}
+      </div>
+    </header>
+  `;
+}
+
+function platformTenantDirectoryTable() {
+  const query = state.search.trim().toLowerCase();
+  const tenants = platformTenants().filter((tenant) => {
+    if (!query) return true;
+    return `${tenant.name} ${tenant.slug} ${tenant.industry} ${tenant.plan_name || ''} ${tenant.subscription_status || ''}`.toLowerCase().includes(query);
+  });
+  return `
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Tenant Directory</h2>
+          <p>Managed workspaces with subscription posture, support engagement, and health snapshots.</p>
+        </div>
+        <span class="badge gray">${h(tenants.length)} workspaces</span>
+      </div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Tenant</th>
+            <th>Plan</th>
+            <th>Status</th>
+            <th>Users</th>
+            <th>Modules</th>
+            <th>Health</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tenants.map((tenant) => `
+            <tr data-platform-tenant="${h(tenant.id)}" class="clickable-row">
+              <td>
+                <strong>${h(tenant.name)}</strong><br />
+                <span class="muted">${h(tenant.industry)}</span>
+              </td>
+              <td>${badge(tenant.plan_name || 'No plan')}<br /><span class="muted">${h(tenant.plan_code || 'PLAN')}</span></td>
+              <td>${badge(tenant.subscription_status || 'Unknown', tenant.subscription_status === 'ACTIVE' ? 'green' : tenant.subscription_status === 'SUSPENDED' ? 'red' : 'amber')}</td>
+              <td>${h(tenant.active_users_count || 0)}</td>
+              <td>${h(tenant.active_modules || 0)}</td>
+              <td>${badge(tenant.auth_status === 'CONFIGURED' && tenant.storage_status === 'CONFIGURED' ? 'Configured' : tenant.auth_status || 'Unknown', tenant.auth_status === 'CONFIGURED' ? 'green' : 'amber')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+function platformDetailSummaryCards() {
+  const tenant = selectedPlatformTenant();
+  const detail = state.platformData?.tenantDetail || {};
+  const usage = state.platformData?.tenantUsage || {};
+  const health = state.platformData?.tenantHealth || {};
+  const subscription = detail.subscription || {};
+  const cards = [
+    ['Workspace', tenant?.name || 'Not selected', tenant?.industry || ''],
+    ['Plan', subscription.plan_name || 'No plan', `Seats ${subscription.consumed_seats || 0}/${subscription.seat_limit || 0}`],
+    ['Usage', `${usage.active_users || 0} users`, `${usage.api_requests || 0} API requests`],
+    ['Health', health.auth_status || 'Unknown', health.note || ''],
+    ['Modules', state.platformData?.tenantModules?.length || 0, 'Entitlement coverage'],
+    ['Support', (state.platformData?.supportSessions || []).filter((session) => session.tenant_id === tenant?.id).length || 0, 'Support sessions']
+  ];
+  return `
+    <section class="kpi-grid shell-kpi-grid">
+      ${cards.map(([label, value, detailText]) => `
+        <article class="panel kpi">
+          <div class="kpi-label">${h(label)}</div>
+          <div class="kpi-value">${h(value)}</div>
+          <div class="kpi-detail">${h(detailText || '')}</div>
+        </article>
+      `).join('')}
+    </section>
+  `;
+}
+
+function platformSupportSessionForm() {
+  const tenant = selectedPlatformTenant();
+  const tenantOptions = platformTenants().map((row) => `<option value="${h(row.id)}" ${row.id === tenant?.id ? 'selected' : ''}>${h(row.name)}</option>`).join('');
+  return `
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Request Support Session</h2>
+          <p>Create an audited support engagement for a managed tenant.</p>
+        </div>
+      </div>
+      <div class="form-grid">
+        <label class="field">
+          <span>Tenant</span>
+          <select name="tenantId" data-platform-support-tenant>
+            ${tenantOptions}
+          </select>
+        </label>
+        <label class="field">
+          <span>Session Type</span>
+          <select name="sessionType" data-platform-support-type>
+            <option value="ADVISORY">Advisory</option>
+            <option value="AUDIT">Audit</option>
+            <option value="BILLING">Billing</option>
+            <option value="SECURITY">Security</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Summary</span>
+          <input name="summary" data-platform-support-summary placeholder="Production runtime review" value="Support review session" />
+        </label>
+        <label class="field">
+          <span>Reason</span>
+          <input name="reason" data-platform-support-reason placeholder="Review tenant readiness" value="Review tenant readiness" />
+        </label>
+      </div>
+      <div class="actions-row">
+        <button class="primary" data-action="platform-create-support-session" type="button">Create Support Request</button>
+      </div>
+    </section>
+  `;
+}
+
+function platformTenantDetailDrawer() {
+  const tenant = selectedPlatformTenant();
+  if (!tenant) {
+    return `
+      <aside class="drawer-shell">
+        <div class="drawer-masthead">
+          <h3>No tenant selected</h3>
+          <p>Select a workspace to inspect plan, usage, users, modules, health, and support posture.</p>
+        </div>
+      </aside>
+    `;
+  }
+  const detail = state.platformData?.tenantDetail || {};
+  const subscription = detail.subscription || {};
+  const users = state.platformData?.tenantUsers || [];
+  const modules = state.platformData?.tenantModules || [];
+  const auditEvents = (state.platformData?.auditEvents || []).filter((event) => event.tenant_id === tenant.id);
+  const securityEvents = (state.platformData?.securityEvents || []).filter((event) => event.tenant_id === tenant.id);
+  const supportSessions = (state.platformData?.supportSessions || []).filter((event) => event.tenant_id === tenant.id);
+  const tabs = [
+    ['Details', `${tenant.name}`],
+    ['Plan', `${subscription.plan_name || 'Plan'}`],
+    ['Usage', `${state.platformData?.tenantUsage?.active_users || 0} users`],
+    ['Health', `${state.platformData?.tenantHealth?.auth_status || 'Unknown'}`],
+    ['Support', `${supportSessions.length}`],
+    ['Users', `${users.length}`],
+    ['Modules', `${modules.length}`],
+    ['Audit', `${auditEvents.length}`],
+    ['Security', `${securityEvents.length}`]
+  ];
+  const activeTab = state.drawerTab || 'Details';
+  const drawerBody = (() => {
+    if (activeTab === 'Plan') {
+      return `
+        <div class="drawer-stack">
+          <div class="drawer-row"><strong>Plan</strong><span>${h(subscription.plan_name || 'No plan')}</span></div>
+          <div class="drawer-row"><strong>Plan code</strong><span>${h(subscription.plan_code || 'Unknown')}</span></div>
+          <div class="drawer-row"><strong>Billing cycle</strong><span>${h(subscription.billing_cycle || 'Unknown')}</span></div>
+          <div class="drawer-row"><strong>Seats</strong><span>${h(subscription.consumed_seats || 0)} consumed / ${h(subscription.seat_limit || 0)} limit</span></div>
+          <div class="drawer-row"><strong>Renewal</strong><span>${h(subscription.renewal_at || 'Not scheduled')}</span></div>
+        </div>
+      `;
+    }
+    if (activeTab === 'Usage') {
+      const usage = state.platformData?.tenantUsage || {};
+      return `
+        <div class="drawer-stack">
+          <div class="drawer-row"><strong>Active users</strong><span>${h(usage.active_users || 0)}</span></div>
+          <div class="drawer-row"><strong>Active devices</strong><span>${h(usage.active_devices || 0)}</span></div>
+          <div class="drawer-row"><strong>API requests</strong><span>${h(usage.api_requests || 0)}</span></div>
+          <div class="drawer-row"><strong>Open work items</strong><span>${h(usage.open_work_items || 0)}</span></div>
+          <div class="drawer-row"><strong>Offline batches</strong><span>${h(usage.offline_batches || 0)}</span></div>
+        </div>
+      `;
+    }
+    if (activeTab === 'Health') {
+      const health = state.platformData?.tenantHealth || {};
+      return `
+        <div class="drawer-stack">
+          <div class="drawer-row"><strong>Auth posture</strong><span>${h(health.auth_status || 'Unknown')}</span></div>
+          <div class="drawer-row"><strong>Storage posture</strong><span>${h(health.storage_status || 'Unknown')}</span></div>
+          <div class="drawer-row"><strong>Integration posture</strong><span>${h(health.integration_status || 'Unknown')}</span></div>
+          <div class="drawer-row"><strong>Audit posture</strong><span>${h(health.audit_status || 'Unknown')}</span></div>
+          <div class="drawer-row"><strong>Support posture</strong><span>${h(health.support_status || 'Unknown')}</span></div>
+        </div>
+      `;
+    }
+    if (activeTab === 'Support') {
+      const supportByStatus = supportSessions.reduce((acc, session) => {
+        acc[session.status] = (acc[session.status] || 0) + 1;
+        return acc;
+      }, {});
+      return `
+        <div class="drawer-stack">
+          <div class="drawer-row"><strong>Requested</strong><span>${h(supportByStatus.REQUESTED || 0)}</span></div>
+          <div class="drawer-row"><strong>Active</strong><span>${h(supportByStatus.ACTIVE || 0)}</span></div>
+          <div class="drawer-row"><strong>Expired</strong><span>${h(supportByStatus.EXPIRED || 0)}</span></div>
+          <div class="drawer-row"><strong>Revoked</strong><span>${h(supportByStatus.REVOKED || 0)}</span></div>
+          <div class="drawer-row"><strong>Denied</strong><span>${h(supportByStatus.DENIED || 0)}</span></div>
+          ${supportSessions.slice(0, 5).map((session) => `
+            <div class="drawer-row">
+              <strong>${h(session.session_type)} · ${h(session.status)}</strong>
+              <span>${h(session.summary || session.reason || '')}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+    if (activeTab === 'Users') {
+      return `
+        <div class="drawer-stack">
+          ${users.map((user) => `
+            <div class="drawer-row">
+              <strong>${h(user.name)}</strong>
+              <span>${h(user.email)} · ${h(platformRoleLabel(user.role_key))}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+    if (activeTab === 'Modules') {
+      return `
+        <div class="drawer-stack">
+          ${modules.map((module) => `
+            <div class="drawer-row">
+              <strong>${h(module.feature_key)}</strong>
+              <span>${h(module.entitlement_status)} · ${h(module.source)}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+    if (activeTab === 'Audit') {
+      return `
+        <div class="drawer-stack">
+          ${auditEvents.slice(0, 8).map((event) => `
+            <div class="drawer-row">
+              <strong>${h(event.action)}</strong>
+              <span>${h(event.summary)}</span>
+            </div>
+          `).join('') || '<div class="empty-state compact-empty">No platform audit events for this tenant.</div>'}
+        </div>
+      `;
+    }
+    if (activeTab === 'Security') {
+      return `
+        <div class="drawer-stack">
+          ${securityEvents.slice(0, 8).map((event) => `
+            <div class="drawer-row">
+              <strong>${h(event.event_type)}</strong>
+              <span>${h(event.summary)}</span>
+            </div>
+          `).join('') || '<div class="empty-state compact-empty">No platform security events for this tenant.</div>'}
+        </div>
+      `;
+    }
+    return `
+      <div class="drawer-stack">
+        <div class="drawer-row"><strong>Workspace</strong><span>${h(tenant.name)}</span></div>
+        <div class="drawer-row"><strong>Plan</strong><span>${h(subscription.plan_name || 'No plan')}</span></div>
+        <div class="drawer-row"><strong>Status</strong><span>${h(subscription.status || tenant.subscription_status || 'Unknown')}</span></div>
+        <div class="drawer-row"><strong>Support sessions</strong><span>${h(supportSessions.length)}</span></div>
+      </div>
+    `;
+  })();
+  const canSuspend = canPlatform('MANAGE_PLATFORM_TENANT_STATUS');
+  const canSupport = canPlatform('MANAGE_PLATFORM_SUPPORT_SESSIONS');
+  const supportButton = canSupport ? `<button class="primary" data-action="platform-create-support-session" type="button">Create Support Request</button>` : '';
+  const suspendButton = canSuspend && subscription.status !== 'SUSPENDED'
+    ? `<button class="danger" data-action="platform-suspend-tenant" type="button">Suspend Workspace</button>`
+    : '';
+  const reactivateButton = canSuspend && subscription.status === 'SUSPENDED'
+    ? `<button class="success" data-action="platform-reactivate-tenant" type="button">Reactivate Workspace</button>`
+    : '';
+  return `
+    <aside class="drawer-shell">
+      <div class="drawer-masthead">
+        <div class="drawer-chip-stack">
+          <span class="chip">${h(tenant.name)}</span>
+          <span class="chip">${h(subscription.plan_code || 'PLAN')}</span>
+          <span class="chip">${h(subscription.plan_name || 'No plan')}</span>
+          <span class="chip">${h(subscription.status || 'Unknown')}</span>
+        </div>
+        <h3>${h(tenant.name)}</h3>
+        <p>Workspace: ${h(tenant.name)} · Plan: ${h(subscription.plan_name || 'No plan')} · Tenant ${h(tenant.id)}</p>
+      </div>
+      <div class="drawer-tabs">
+        ${tabs.map(([tab, label]) => `<button class="drawer-tab ${activeTab === tab ? 'active' : ''}" data-drawer-tab="${h(tab)}" type="button">${h(label)}</button>`).join('')}
+      </div>
+      <div class="drawer-action-list">
+        ${supportButton}
+        ${suspendButton}
+        ${reactivateButton}
+      </div>
+      <div class="drawer-body">
+        ${drawerBody}
+      </div>
+    </aside>
+  `;
+}
+
+function platformDashboardPage() {
+  const summary = platformSummary();
+  return `
+    <div class="workspace-stage shell-stage">
+      <section class="panel landing-section">
+        <div class="section-head">
+          <div>
+            <h2>Platform Overview</h2>
+            <p>Command plane for tenant plans, support, security, billing posture, and managed workspaces.</p>
+          </div>
+        </div>
+        ${platformShellKpis()}
+      </section>
+      <section class="panel landing-section">
+        <div class="section-head">
+          <div>
+            <h2>Executive Briefing</h2>
+            <p>Operational summary across active modules, support posture, security, audit, and workspace health.</p>
+          </div>
+        </div>
+        <div class="landing-grid">
+          <article class="landing-card"><div class="eyebrow">Workspaces</div><strong>${h(summary.totalTenants || 0)}</strong><p>${h(summary.activeTenants || 0)} active · ${h(summary.restrictedTenants || 0)} restricted</p></article>
+          <article class="landing-card"><div class="eyebrow">Active Modules</div><strong>${h(summary.totalModules || 0)}</strong><p>Enabled across managed tenants</p></article>
+          <article class="landing-card"><div class="eyebrow">Support</div><strong>${h(summary.openSupportSessions || 0)}</strong><p>${h(summary.requestedSupportSessions || 0)} requested · ${h(summary.activeSupportSessions || 0)} active</p></article>
+          <article class="landing-card"><div class="eyebrow">Health</div><strong>${h(summary.healthyTenants || 0)}</strong><p>Configured workspaces in good standing</p></article>
+          <article class="landing-card"><div class="eyebrow">Security</div><strong>${h(summary.securityEvents || 0)}</strong><p>Recorded platform security events</p></article>
+          <article class="landing-card"><div class="eyebrow">Audit</div><strong>${h(summary.auditEvents || 0)}</strong><p>Immutable platform audit trail entries</p></article>
+        </div>
+      </section>
+      ${platformTenantDirectoryTable()}
+      <section class="panel landing-section">
+        <div class="section-head">
+          <div>
+            <h2>Support Sessions</h2>
+            <p>Audited platform support sessions across managed tenants.</p>
+          </div>
+        </div>
+        <div class="landing-grid">
+          ${(state.platformData?.supportSessions || []).slice(0, 4).map((session) => `
+            <article class="landing-card">
+              <div class="eyebrow">${h(session.session_type)}</div>
+              <strong>${h(session.tenant_name || session.tenant_id)}</strong>
+              <p>${h(session.summary || session.reason || '')}</p>
+            </article>
+          `).join('')}
+        </div>
+      </section>
+      <section class="panel landing-section">
+        <div class="section-head">
+          <div>
+            <h2>Security & Billing</h2>
+            <p>Latest control-plane events and commercial posture markers.</p>
+          </div>
+        </div>
+        <div class="landing-grid">
+          ${(state.platformData?.securityEvents || []).slice(0, 3).map((event) => `
+            <article class="landing-card danger-tone">
+              <div class="eyebrow">${h(event.event_type)}</div>
+              <strong>${h(event.summary)}</strong>
+              <p>${h(event.severity || 'INFO')}</p>
+            </article>
+          `).join('')}
+          ${(state.platformData?.billingEvents || []).slice(0, 3).map((event) => `
+            <article class="landing-card">
+              <div class="eyebrow">${h(event.event_type)}</div>
+              <strong>${h(event.summary)}</strong>
+              <p>${h((event.amount_cents || 0) / 100)} ${h(event.currency || 'USD')}</p>
+            </article>
+          `).join('')}
+        </div>
+      </section>
+      <section class="panel landing-section">
+        <div class="section-head">
+          <div>
+            <h2>System Health</h2>
+            <p>Tenant health snapshots across authentication, storage, integration, and support posture.</p>
+          </div>
+        </div>
+        <div class="landing-grid">
+          ${(state.platformData?.tenants || []).map((tenant) => {
+            const health = tenant.auth_status || tenant.storage_status || tenant.integration_status;
+            return `
+              <article class="landing-card" data-platform-tenant="${h(tenant.id)}">
+                <div class="eyebrow">${h(tenant.tier || 'tenant')}</div>
+                <strong>${h(tenant.name)}</strong>
+                <p>${h(health || 'CONFIGURATION_REQUIRED')} · ${h(tenant.health_note || 'No health note')}</p>
+              </article>
+            `;
+          }).join('')}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function platformPageBody() {
+  if (state.platformPage === 'Tenant Directory') return platformTenantDirectoryTable();
+  if (state.platformPage === 'Tenant Detail') {
+    return `
+      <div class="workspace-stage shell-stage">
+        ${platformDetailSummaryCards()}
+        ${platformSupportSessionForm()}
+        <section class="panel landing-section">
+          <div class="section-head">
+            <div>
+              <h2>Platform Events</h2>
+              <p>Audit and security events for the selected tenant.</p>
+            </div>
+          </div>
+          <div class="landing-grid">
+            ${(state.platformData?.auditEvents || []).filter((event) => event.tenant_id === state.platformTenantId).slice(0, 4).map((event) => `
+              <article class="landing-card">
+                <div class="eyebrow">Audit</div>
+                <strong>${h(event.action)}</strong>
+                <p>${h(event.summary)}</p>
+              </article>
+            `).join('')}
+          </div>
+        </section>
+      </div>
+    `;
+  }
+  if (state.platformPage === 'Subscription & Plans') {
+    return `
+      <div class="workspace-stage shell-stage">
+        <section class="panel landing-section">
+          <div class="section-head">
+            <div>
+              <h2>Subscription & Plans</h2>
+              <p>Commercial plan posture, seat limits, and renewal windows.</p>
+            </div>
+          </div>
+          <table class="table">
+            <thead>
+              <tr><th>Tenant</th><th>Plan</th><th>Status</th><th>Seats</th><th>Renewal</th></tr>
+            </thead>
+            <tbody>
+              ${platformTenants().map((tenant) => `
+                <tr data-platform-tenant="${h(tenant.id)}" class="clickable-row">
+                  <td><strong>${h(tenant.name)}</strong><br /><span class="muted">${h(tenant.slug)}</span></td>
+                  <td>${h(tenant.plan_name || 'No plan')}</td>
+                  <td>${badge(tenant.subscription_status || 'Unknown', tenant.subscription_status === 'ACTIVE' ? 'green' : tenant.subscription_status === 'SUSPENDED' ? 'red' : 'amber')}</td>
+                  <td>${h(tenant.consumed_seats || 0)} / ${h(tenant.seat_limit || 0)}</td>
+                  <td>${h(tenant.renewal_at || 'Not set')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </section>
+      </div>
+    `;
+  }
+  if (state.platformPage === 'Module Entitlements') {
+    const tenant = selectedPlatformTenant();
+    return `
+      <div class="workspace-stage shell-stage">
+        <section class="panel landing-section">
+          <div class="section-head">
+            <div>
+              <h2>Module Entitlements</h2>
+              <p>${h(tenant?.name || 'Selected workspace')} entitlement posture across enabled and restricted modules.</p>
+            </div>
+          </div>
+          <table class="table">
+            <thead><tr><th>Module</th><th>Status</th><th>Source</th><th>Notes</th></tr></thead>
+            <tbody>
+              ${(state.platformData?.tenantModules || []).map((module) => `
+                <tr>
+                  <td><strong>${h(module.feature_key)}</strong></td>
+                  <td>${badge(module.entitlement_status, module.entitlement_status === 'ENABLED' ? 'green' : 'amber')}</td>
+                  <td>${h(module.source)}</td>
+                  <td>${h(module.notes)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </section>
+      </div>
+    `;
+  }
+  if (state.platformPage === 'User & Seats') {
+    const tenant = selectedPlatformTenant();
+    return `
+      <div class="workspace-stage shell-stage">
+        <section class="panel landing-section">
+          <div class="section-head">
+            <div>
+              <h2>User & Seats</h2>
+              <p>${h(tenant?.name || 'Selected workspace')} user roster and seat posture.</p>
+            </div>
+          </div>
+          <table class="table">
+            <thead><tr><th>User</th><th>Role</th><th>Department</th><th>Facility</th></tr></thead>
+            <tbody>
+              ${(state.platformData?.tenantUsers || []).map((user) => `
+                <tr>
+                  <td><strong>${h(user.name)}</strong><br /><span class="muted">${h(user.email)}</span></td>
+                  <td>${h(platformRoleLabel(user.role_key))}</td>
+                  <td>${h(user.department_id || '—')}</td>
+                  <td>${h(user.facility_id || '—')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </section>
+      </div>
+    `;
+  }
+  if (state.platformPage === 'Support Sessions') {
+    const supportSessions = state.platformData?.supportSessions || [];
+    const supportStatusCounts = supportSessions.reduce((acc, session) => {
+      const status = String(session.status || 'REQUESTED').toUpperCase();
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, { REQUESTED: 0, ACTIVE: 0, EXPIRED: 0, REVOKED: 0, DENIED: 0 });
+    return `
+      <div class="workspace-stage shell-stage">
+        ${platformSupportSessionForm()}
+        <section class="panel landing-section">
+          <div class="section-head">
+            <div>
+              <h2>Support Sessions</h2>
+              <p>Audited sessions across the control plane. Statuses include requested, active, expired, revoked, and denied.</p>
+            </div>
+          </div>
+          <div class="shell-chips" aria-label="Support session status summary">
+            ${['REQUESTED', 'ACTIVE', 'EXPIRED', 'REVOKED', 'DENIED'].map((status) => `<span class="status-pill ${status === 'ACTIVE' ? 'status-ok' : status === 'EXPIRED' || status === 'DENIED' || status === 'REVOKED' ? 'status-warn' : 'status-neutral'}">${status} ${h(String(supportStatusCounts[status] || 0))}</span>`).join('')}
+          </div>
+          <table class="table">
+            <thead>
+              <tr><th>Tenant</th><th>Type</th><th>Status</th><th>Reason</th><th>Action</th></tr>
+            </thead>
+            <tbody>
+              ${supportSessions.map((session) => `
+                <tr>
+                  <td><strong>${h(session.tenant_name || session.tenant_id)}</strong><br /><span class="muted">${h(session.tenant_slug || '')}</span></td>
+                  <td>${h(session.session_type)}</td>
+                  <td>${badge(session.status || 'REQUESTED', session.status === 'ACTIVE' ? 'green' : session.status === 'DENIED' || session.status === 'REVOKED' ? 'red' : 'amber')}</td>
+                  <td>${h(session.reason || session.summary || '')}</td>
+                  <td>
+                    ${['REQUESTED', 'ACTIVE'].includes(session.status)
+                      ? `<button class="ghost small" data-action="platform-end-support-session" data-id="${h(session.id)}" type="button">End Session</button>`
+                      : '<span class="muted">Closed</span>'}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </section>
+      </div>
+    `;
+  }
+  if (state.platformPage === 'Security & Audit') {
+    return `
+      <div class="workspace-stage shell-stage">
+        <section class="panel landing-section">
+          <div class="section-head">
+            <div>
+              <h2>Security & Audit</h2>
+              <p>Immutable platform events and security posture.</p>
+            </div>
+          </div>
+          <div class="landing-grid">
+            ${(state.platformData?.securityEvents || []).map((event) => `
+              <article class="landing-card danger-tone">
+                <div class="eyebrow">${h(event.event_type)}</div>
+                <strong>${h(event.summary)}</strong>
+                <p>${h(event.severity || 'INFO')}</p>
+              </article>
+            `).join('')}
+            ${(state.platformData?.auditEvents || []).slice(0, 6).map((event) => `
+              <article class="landing-card">
+                <div class="eyebrow">Audit</div>
+                <strong>${h(event.action)}</strong>
+                <p>${h(event.summary)}</p>
+              </article>
+            `).join('')}
+          </div>
+        </section>
+      </div>
+    `;
+  }
+  if (state.platformPage === 'System Health') {
+    return `
+      <div class="workspace-stage shell-stage">
+        <section class="panel landing-section">
+          <div class="section-head">
+            <div>
+              <h2>System Health</h2>
+              <p>Tenant posture across authentication, storage, and integrations.</p>
+            </div>
+          </div>
+          <div class="landing-grid">
+            ${(state.platformData?.tenants || []).map((tenant) => `
+              <article class="landing-card" data-platform-tenant="${h(tenant.id)}">
+                <div class="eyebrow">${h(tenant.name)}</div>
+                <strong>${h(tenant.auth_status || 'CONFIGURATION_REQUIRED')}</strong>
+                <p>${h(tenant.storage_status || 'CONFIGURATION_REQUIRED')} · ${h(tenant.integration_status || 'CONFIGURATION_REQUIRED')} · ${h(tenant.health_note || '')}</p>
+              </article>
+            `).join('')}
+          </div>
+        </section>
+      </div>
+    `;
+  }
+  return platformDashboardPage();
+}
+
+function platformWorkspaceShell() {
+  return `
+    <div class="workspace-shell shell-shell">
+      ${platformSidebar()}
+      <div class="workspace-stage shell-stage">
+        ${platformTopbar()}
+        ${state.loading ? shellSkeleton() : state.error ? `<section class="panel empty-state error-state">${h(state.error)}</section>` : platformPageBody()}
+      </div>
+      ${platformTenantDetailDrawer()}
+    </div>
+  `;
+}
+
 function modulePreviewPage(page) {
   const reason = pageAvailabilityReason(page);
   const note = SECTION_NOTE[page] || 'Commercial workspace module surface.';
@@ -2593,8 +3454,11 @@ function apiQuery() {
 
 async function api(path, options = {}) {
   const headers = new Headers(options.headers || {});
-  if (state.bootstrap?.session?.csrf_token && ['POST', 'PATCH', 'PUT', 'DELETE'].includes((options.method || 'GET').toUpperCase())) {
-    headers.set('X-CSRF-Token', state.bootstrap.session.csrf_token);
+  const csrfToken = currentSurface() === 'platform'
+    ? (state.platformBootstrap?.session?.csrf_token || state.platformIdentity?.session?.csrf_token || '')
+    : (state.bootstrap?.session?.csrf_token || '');
+  if (csrfToken && ['POST', 'PATCH', 'PUT', 'DELETE'].includes((options.method || 'GET').toUpperCase())) {
+    headers.set('X-CSRF-Token', csrfToken);
   }
   if (options.body && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
@@ -2793,7 +3657,92 @@ async function refreshWithProcureToPayDetail(focusType = state.drawerFocus?.type
   }
 }
 
+async function loadPlatformData() {
+  state.loading = true;
+  state.error = '';
+  state.platformData = {};
+  render();
+  try {
+    state.platformAuthBootstrap = await api('/api/platform/auth/bootstrap');
+    const identity = await api('/api/platform/me');
+    state.authRequired = false;
+    state.platformIdentity = identity;
+    state.platformBootstrap = identity;
+    state.authMode = identity.auth?.mode || state.platformAuthBootstrap?.mode || state.authMode || 'dev';
+    const path = typeof window !== 'undefined' ? window.location.pathname : '/platform/dashboard';
+    const routeTenantId = path.match(/^\/platform\/tenants\/([^/]+)/)?.[1] || state.platformTenantId || '';
+    state.platformTenantId = routeTenantId;
+    state.platformPage = platformPageFromPathname(path);
+    const [summary, tenants, audit, security, billing, support] = await Promise.all([
+      safeApi('/api/platform/summary'),
+      safeApi('/api/platform/tenants'),
+      safeApi('/api/platform/audit-events'),
+      safeApi('/api/platform/security-events'),
+      safeApi('/api/platform/billing-events'),
+      safeApi('/api/platform/support-sessions')
+    ]);
+    let tenantDetail = null;
+    let tenantUsers = null;
+    let tenantModules = null;
+    let tenantUsage = null;
+    let tenantHealth = null;
+    const selectedTenantId = routeTenantId || tenants?.tenants?.[0]?.id || '';
+    if (selectedTenantId && path.startsWith('/platform/tenants/')) {
+      state.platformTenantId = selectedTenantId;
+      [tenantDetail, tenantUsers, tenantModules, tenantUsage, tenantHealth] = await Promise.all([
+        safeApi(`/api/platform/tenants/${selectedTenantId}`),
+        safeApi(`/api/platform/tenants/${selectedTenantId}/users`),
+        safeApi(`/api/platform/tenants/${selectedTenantId}/modules`),
+        safeApi(`/api/platform/tenants/${selectedTenantId}/usage`),
+        safeApi(`/api/platform/tenants/${selectedTenantId}/health`)
+      ]);
+    }
+    state.platformData = {
+      summary: summary?.summary || {},
+      tenants: tenants?.tenants || [],
+      auditEvents: audit?.events || [],
+      securityEvents: security?.events || [],
+      billingEvents: billing?.events || [],
+      supportSessions: support?.sessions || [],
+      tenantDetail,
+      tenantUsers: tenantUsers?.users || [],
+      tenantModules: tenantModules?.entitlements || [],
+      tenantUsage: tenantUsage?.usage || null,
+      tenantUsageHistory: tenantUsage?.history || [],
+      tenantHealth: tenantHealth?.health || null,
+      tenantHealthHistory: tenantHealth?.history || []
+    };
+  } catch (error) {
+    if (error.status === 401) {
+      state.authRequired = true;
+      state.loginUrl = '/platform/login';
+      state.error = error.message || 'Platform authentication required.';
+      state.platformIdentity = null;
+      state.platformBootstrap = null;
+      state.platformData = null;
+      state.loading = false;
+      if (!state.platformAuthBootstrap) {
+        try {
+          state.platformAuthBootstrap = await api('/api/platform/auth/bootstrap');
+        } catch {
+          state.platformAuthBootstrap = { mode: 'locked', demo_login_enabled: false, login_required: true };
+        }
+      }
+      render();
+      return;
+    }
+    state.error = error.message || 'Unable to load platform data.';
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
+
 async function loadData() {
+  if (currentSurface() === 'platform') {
+    await loadPlatformData();
+    return;
+  }
   state.loading = true;
   state.error = '';
   state.procurementDetails = {};
@@ -2991,9 +3940,21 @@ async function loadData() {
 }
 
 function setPage(page) {
-  state.page = page;
-  state.workerMode = page === 'Worker-Safe Mode';
-  if (typeof localStorage !== 'undefined') localStorage.setItem('opstrax.page', page);
+  if (currentSurface() === 'platform' || PLATFORM_PAGE_TITLES[page]) {
+    state.surface = 'platform';
+    state.platformPage = page;
+    state.platformTenantId = page === 'Tenant Detail' ? state.platformTenantId : state.platformTenantId;
+    if (typeof localStorage !== 'undefined') localStorage.setItem('opstrax.platform.page', page);
+    if (typeof window !== 'undefined') {
+      const nextPath = platformPathForPage(page);
+      if (window.location.pathname !== nextPath) window.history.pushState({}, '', nextPath);
+    }
+  } else {
+    state.surface = 'tenant';
+    state.page = page;
+    state.workerMode = page === 'Worker-Safe Mode';
+    if (typeof localStorage !== 'undefined') localStorage.setItem('opstrax.page', page);
+  }
   render();
 }
 
@@ -3153,7 +4114,7 @@ function moduleSignals(items) {
   `;
 }
 
-export function authPage() {
+function tenantAuthPage() {
   const demoEnabled = Boolean(state.authBootstrap?.demo_login_enabled);
   return `
     <section class="auth-shell">
@@ -3200,6 +4161,59 @@ export function authPage() {
       </div>
     </section>
   `;
+}
+
+function platformAuthPage() {
+  const demoEnabled = Boolean(state.platformAuthBootstrap?.demo_login_enabled);
+  return `
+    <section class="auth-shell">
+      <div class="auth-card panel">
+        <div class="brand" style="margin-bottom:14px;padding:0">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48" role="img" focusable="false" aria-hidden="true">
+              <defs>
+                <linearGradient id="opstraxPlatformMarkAuth" x1="6" y1="7" x2="42" y2="41" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#9be7ff"/>
+                  <stop offset="0.48" stop-color="#5b8cff"/>
+                  <stop offset="1" stop-color="#14b8a6"/>
+                </linearGradient>
+              </defs>
+              <rect x="8" y="8" width="32" height="32" rx="12" fill="rgba(255,255,255,.05)" stroke="url(#opstraxPlatformMarkAuth)" stroke-width="1.4"/>
+              <path d="M14 25.5C17 19 22 15 28.7 15c4.2 0 7.4 1.4 9.9 4.2" fill="none" stroke="url(#opstraxPlatformMarkAuth)" stroke-width="2.1" stroke-linecap="round"/>
+              <path d="M34 22.5C31 29 26 33 19.3 33c-4.2 0-7.4-1.4-9.9-4.2" fill="none" stroke="url(#opstraxPlatformMarkAuth)" stroke-width="2.1" stroke-linecap="round" opacity=".92"/>
+              <circle cx="24" cy="24" r="4.1" fill="url(#opstraxPlatformMarkAuth)"/>
+            </svg>
+          </div>
+          <div>
+            <div class="brand-title">OpsTrax</div>
+            <div class="brand-subtitle">Platform Control Plane</div>
+          </div>
+        </div>
+        <div class="auth-grid">
+          <div>
+            <div class="eyebrow">Platform access</div>
+            <h1>Platform Admin Sign-In</h1>
+            <p>Use the platform control plane to manage tenants, plans, support sessions, and system posture.</p>
+            ${state.error ? `<p class="muted auth-error">${h(state.error)}</p>` : ''}
+            <div class="auth-actions">
+              ${demoEnabled ? `<button class="primary auth-button" data-action="platform-demo-login" type="button">Enter Platform Workspace</button>` : ''}
+              <a class="ghost auth-button" href="/platform/dashboard">Open Platform Dashboard</a>
+            </div>
+            ${demoEnabled ? `<p class="muted" style="margin-top:10px">Local demo mode only. Use the seeded platform owner workspace for the control plane.</p>` : `<p class="muted" style="margin-top:10px">Platform demo login is disabled. Configure platform SSO before exposing this surface in production.</p>`}
+          </div>
+          <div class="auth-side">
+            <div class="auth-metric"><span>Platform isolation</span><strong>Separate session</strong></div>
+            <div class="auth-metric"><span>Audit trail</span><strong>Platform-only</strong></div>
+            <div class="auth-metric"><span>Support access</span><strong>Audited</strong></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+export function authPage() {
+  return currentSurface() === 'platform' ? platformAuthPage() : tenantAuthPage();
 }
 
 function strategyBoard() {
@@ -6207,6 +7221,7 @@ function adminPage() {
 }
 
 function renderPage() {
+  if (currentSurface() === 'platform') return platformPageBody();
   if (state.page === 'Command Center') return shellLanding();
   if (state.page === 'Inventory Control') return inventoryPage();
   if (state.page === 'Warehouse Workflows') return warehousePage();
@@ -6236,6 +7251,17 @@ function render() {
   if (!root) return;
   if (state.authRequired) {
     root.innerHTML = authPage();
+    return;
+  }
+  if (currentSurface() === 'platform') {
+    const normalizedPage = PLATFORM_PAGE_TITLES[state.platformPage] ? state.platformPage : platformPageFromPathname(typeof window !== 'undefined' ? window.location.pathname : '/platform/dashboard');
+    if (normalizedPage !== state.platformPage) {
+      state.platformPage = normalizedPage;
+      if (typeof localStorage !== 'undefined') localStorage.setItem('opstrax.platform.page', state.platformPage);
+    }
+    root.innerHTML = `
+      ${platformWorkspaceShell()}
+    `;
     return;
   }
   const normalizedPage = normalizePage(state.page);
@@ -6341,7 +7367,7 @@ if (typeof document !== 'undefined') {
       window.location.reload();
       return;
     }
-    if (action === 'demo-login') {
+  if (action === 'demo-login') {
       try {
         await api('/api/dev/demo-login', {
           method: 'POST',
@@ -6353,6 +7379,29 @@ if (typeof document !== 'undefined') {
       } catch (error) {
         state.error = error.message || 'Unable to enter workspace.';
         render();
+      }
+      return;
+    }
+    if (action === 'platform-demo-login') {
+      try {
+        await api('/api/platform/dev/demo-login', {
+          method: 'POST',
+          body: {}
+        });
+        state.authRequired = false;
+        state.error = '';
+        await loadPlatformData();
+      } catch (error) {
+        state.error = error.message || 'Unable to enter platform workspace.';
+        render();
+      }
+      return;
+    }
+    if (action === 'platform-logout') {
+      try {
+        await api('/api/platform/logout', { method: 'POST', body: {} });
+      } finally {
+        window.location.href = '/platform/login';
       }
       return;
     }
@@ -6422,12 +7471,95 @@ if (typeof document !== 'undefined') {
         await refreshWithProcureToPayDetail('vendor-invoice', invoiceId);
         return;
       }
-      if (action === 'delete-request-line') {
-        const requestId = state.drawerFocus?.id;
-        await api(`/api/requests/${requestId}/lines/${button.dataset.lineId}`, { method: 'DELETE', body: {} });
-        state.requestLineDraft = null;
-        toast('Request line deleted.');
+    if (action === 'delete-request-line') {
+      const requestId = state.drawerFocus?.id;
+      await api(`/api/requests/${requestId}/lines/${button.dataset.lineId}`, { method: 'DELETE', body: {} });
+      state.requestLineDraft = null;
+      toast('Request line deleted.');
       await refreshWithRequestDetail(requestId);
+      return;
+    }
+    if (action === 'platform-create-support-session') {
+      const form = button.closest('section, .panel, .workspace-stage') || document;
+      const tenantId = form.querySelector?.('[data-platform-support-tenant]')?.value || state.platformTenantId || '';
+      const sessionType = form.querySelector?.('[data-platform-support-type]')?.value || 'ADVISORY';
+      const summary = form.querySelector?.('[data-platform-support-summary]')?.value || 'Support review session';
+      const reason = form.querySelector?.('[data-platform-support-reason]')?.value || 'Review tenant readiness';
+      try {
+        await api('/api/platform/support-sessions', {
+          method: 'POST',
+          body: { tenantId, sessionType, summary, reason }
+        });
+        toast('Support session created.');
+        await loadPlatformData();
+        render();
+      } catch (error) {
+        state.error = error.message || 'Unable to create support session.';
+        render();
+      }
+      return;
+    }
+    if (action === 'platform-end-support-session') {
+      const sessionId = button.dataset.id || '';
+      if (!sessionId) return;
+      const status = prompt('End status (EXPIRED, REVOKED, DENIED)', 'EXPIRED');
+      if (!status) return;
+      const reason = prompt('Reason for ending the session', 'Review complete');
+      if (!reason) return;
+      const summary = prompt('Session summary', 'Support session closed') || 'Support session closed';
+      try {
+        await api(`/api/platform/support-sessions/${sessionId}/end`, {
+          method: 'POST',
+          body: { status, reason, summary }
+        });
+        toast('Support session updated.');
+        await loadPlatformData();
+        render();
+      } catch (error) {
+        state.error = error.message || 'Unable to end support session.';
+        render();
+      }
+      return;
+    }
+    if (action === 'platform-suspend-tenant') {
+      const tenantId = state.platformTenantId || selectedPlatformTenant()?.id || '';
+      if (!tenantId) return;
+      const reason = prompt('Reason for suspension', 'Compliance or billing issue');
+      if (!reason) return;
+      await api(`/api/platform/tenants/${tenantId}/suspend`, {
+        method: 'POST',
+        body: { reason }
+      });
+      toast('Workspace suspended.');
+      await loadPlatformData();
+      render();
+      return;
+    }
+    if (action === 'platform-reactivate-tenant') {
+      const tenantId = state.platformTenantId || selectedPlatformTenant()?.id || '';
+      if (!tenantId) return;
+      const reason = prompt('Reason for reactivation', 'Issue resolved');
+      if (!reason) return;
+      await api(`/api/platform/tenants/${tenantId}/reactivate`, {
+        method: 'POST',
+        body: { reason }
+      });
+      toast('Workspace reactivated.');
+      await loadPlatformData();
+      render();
+      return;
+    }
+    if (action === 'platform-view-tenant') {
+      const tenantId = button.dataset.tenantId || button.closest('[data-platform-tenant]')?.dataset.platformTenant || '';
+      if (!tenantId) return;
+      state.surface = 'platform';
+      state.platformTenantId = tenantId;
+      state.platformPage = 'Tenant Detail';
+      state.drawerTab = 'Details';
+      if (typeof localStorage !== 'undefined') localStorage.setItem('opstrax.platform.page', state.platformPage);
+      if (typeof history !== 'undefined') history.pushState({}, '', `/platform/tenants/${tenantId}`);
+      await loadPlatformData();
+      render();
       return;
     }
     try {
@@ -6926,6 +8058,34 @@ if (typeof document !== 'undefined') {
       toast(error.message);
     }
   });
+  document.addEventListener('click', async (event) => {
+    const tenantNode = event.target.closest('[data-platform-tenant]');
+    if (!tenantNode) return;
+    const tenantId = tenantNode.dataset.platformTenant || '';
+    if (!tenantId) return;
+    state.surface = 'platform';
+    state.platformTenantId = tenantId;
+    state.platformPage = 'Tenant Detail';
+    state.drawerTab = 'Details';
+    if (typeof localStorage !== 'undefined') localStorage.setItem('opstrax.platform.page', state.platformPage);
+    if (typeof history !== 'undefined') history.pushState({}, '', `/platform/tenants/${tenantId}`);
+    await loadPlatformData();
+    render();
+  });
+  if (typeof window !== 'undefined') {
+    window.addEventListener('popstate', async () => {
+      if (currentSurface() === 'platform') {
+        state.platformPage = platformPageFromPathname(window.location.pathname);
+        state.platformTenantId = window.location.pathname.match(/^\/platform\/tenants\/([^/]+)/)?.[1] || state.platformTenantId || '';
+        await loadPlatformData();
+        render();
+      } else {
+        state.currentPage = typeof window !== 'undefined' ? pageFromPathname(window.location.pathname) : state.currentPage;
+        await loadData();
+        render();
+      }
+    });
+  }
 
   document.addEventListener('submit', async (event) => {
     const form = event.target;

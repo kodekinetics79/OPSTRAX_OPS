@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runStartupChecks } from './src/startup.js';
 import { authEnabled, completeLogin, createDemoSession, getAuthBootstrap, getLoginUrl, isDemoLoginEnabled, logoutSession, requireCsrf } from './src/auth.js';
 import { auditDenied, getAdminSnapshot, getAuditSummary, getEntityAudit, getMe, getReceiveSessionDetail, getReceivingSummary, getEvidenceDetail, downloadEvidenceContent, linkEvidence, verifyEvidence, archiveEvidence, listEvidenceLinks, listAuditLogs, listBootstrap, listCompliance, listDepartments, listDevices, listDocuments, listExports, listExportSummary, listExportCandidates, listExportBatches, getExportBatchDetail, listExportBatchErrors, validateExportBatch, approveExportBatch, generateExportBatch, dispatchExportBatch, cancelExportBatch, listFacilities, listFeatureFlags, listInternalRequests, listItems, listItemCategories, listInventorySummary, listInventoryBalances, listStockMovements, listStockAdjustments, listInventoryBins, getItemDetail, getInventoryAdjustmentDetail, createItem, updateItem, createStockAdjustment, listLabelJobs, listPermissions, listPurchaseRequests, listPurchaseOrders, listReceivingMovements, listReceivingPurchaseOrders, listReceivingSessions, listVendors, getProcurementSummary, getVendorDetail, createVendor, updateVendor, getPurchaseDetail, getPurchaseOrderDetail, createPurchaseRequest, updatePurchaseRequest, submitPurchaseRequest, approvePurchaseRequest, rejectPurchaseRequest, cancelPurchaseRequest, listPurchaseRequestLines, createPurchaseRequestLine, updatePurchaseRequestLine, deletePurchaseRequestLine, createPurchaseOrderFromPurchaseRequest, updatePurchaseOrder, approvePurchaseOrder, issuePurchaseOrder, cancelPurchaseOrder, listSupplierContracts, getSupplierContractDetail, createSupplierContract, updateSupplierContract, listDepartmentBudgets, getDepartmentBudgetDetail, updateDepartmentBudget, listProcurementWaivers, createProcurementWaiver, getProcurementAdvisory, getProcureToPaySummary, listVendorInvoices, listVendorInvoiceLines, listVendorInvoiceExceptions, getVendorInvoiceExceptionDetail, getVendorInvoiceDetail, createVendorInvoice, createVendorInvoiceLine, updateVendorInvoice, updateVendorInvoiceLine, deleteVendorInvoiceLine, uploadVendorInvoice, extractVendorInvoice, matchVendorInvoice, waiveInvoiceException, approveVendorInvoice, rejectVendorInvoice, cancelVendorInvoice, markVendorInvoiceExportReady, exportVendorInvoice, listRfqRequests, getRfqRequestDetail, createRfqRequest, updateRfqRequest, sendRfqRequest, evaluateRfqRequest, awardRfqRequest, cancelRfqRequest, listRfqLines, createRfqLine, updateRfqLine, deleteRfqLine, listVendorQuotes, getVendorQuoteDetail, createVendorQuote, updateVendorQuote, submitVendorQuote, shortlistVendorQuote, awardVendorQuote, rejectVendorQuote, expireVendorQuote, listVendorScorecards, createReceiveSessionFromPurchaseOrder, startReceiveSession, recordReceiveLine, recordReceiveException, postReceiveSession, cancelReceiveSession, listRoles, listSyncBatches, listSyncConflicts, listUsers, resolveContext, createInternalRequest, submitInternalRequest, cancelInternalRequest, approveInternalRequest, rejectInternalRequest, issueInternalRequest, reviewSyncBatch, createLabelJob, createExportBatch, validateFinanceExport, generateFinanceExport as generateFinanceExportAction, uploadDocument, resolveSyncConflict, dispatchExport, getRequestDetail, listAvailableRequestItems, updateInternalRequest, listRequestLines, createRequestLine, updateRequestLine, deleteRequestLine, listWarehouseSummary, listWarehouseTasks, listIssueReadyRequests, listWarehouseBins, getWarehouseTaskDetail, createWarehouseTaskFromRequest, startWarehouseTask, pickWarehouseTaskLine, issueWarehouseTaskLine, closeWarehouseTask, cancelWarehouseTask, listIntegrationSummary, listIntegrationConnections, createIntegrationConnection, listIntegrationJobs, getIntegrationConnectionDetail, getIntegrationJobDetail, retryIntegrationJob, cancelIntegrationJob, listDeviceOpsSummary, createDevice, getDeviceDetail, updateDevice, trustDevice, suspendDevice, revokeDevice, listDeviceEvents, recordScanEvent, validateScan, listOfflineSummary, createOfflineBatch, listOfflineBatches, getOfflineBatchDetail, uploadOfflineBatch, validateOfflineBatch, replayOfflineBatch, approveOfflineBatch, rejectOfflineBatch, listSyncConflictsNew, getSyncConflictDetail, approveSyncConflict, rejectSyncConflict, listOfflineTasks, getOfflineTaskDetail , listAiSummary, listAiAgents, listAiRecommendations, generateAiRecommendations, getAiRecommendationDetail, dismissAiRecommendation, approveAiRecommendationPlaceholder, listAiRuns, getAiRunDetail, queryOpsCopilot, listComplianceControls, updateComplianceControl, listComplianceEvidence, listAccessReviews, createAccessReview, reviewAccessEntry, listRiskRegister, createRiskEntry, updateRiskEntry, listIncidentRegister, createIncident, updateIncident, listVendorIntegrationRegister, listAiGovernanceLogs, getSecurityPosture, getAvailabilityPosture, listSsoConfigurations, listBackupRecords, listRestoreTests } from './src/services.js';
+import { getPlatformAuthBootstrap, createPlatformDemoSession as createPlatformSession, endPlatformWorkspaceSession, resolvePlatformContext, getPlatformMe, getPlatformSummary, listPlatformTenants, getPlatformTenantDetail, getPlatformTenantUsers, getPlatformTenantModules, getPlatformTenantUsage, getPlatformTenantHealth, listPlatformAuditEvents, listPlatformSecurityEvents, listPlatformBillingEvents, listPlatformSupportSessions, createPlatformSupportSession, updatePlatformTenantSubscription, updatePlatformTenantPlan, updatePlatformTenantEntitlements, endPlatformSupportSession, suspendPlatformTenant, reactivatePlatformTenant, auditPlatformDenied } from './src/platform.js';
 import { getDatabaseRuntimeInfo, selectOne as dbSelectOne } from './src/db.js';
 import { probeEvidenceStorage } from './src/evidence-storage.js';
 import { parseJsonBody } from './src/validation.js';
@@ -50,6 +51,24 @@ function sendRedirect(res, location, headers = {}) {
 
 function routeAction(pathname, method) {
   const base = pathname.split('/').filter(Boolean);
+  if (pathname === '/api/platform/me') return 'VIEW_PLATFORM_ME';
+  if (pathname === '/api/platform/summary') return 'VIEW_PLATFORM_SUMMARY';
+  if (pathname === '/api/platform/tenants') return 'VIEW_PLATFORM_TENANTS';
+  if (pathname.match(/^\/api\/platform\/tenants\/[^/]+\/users$/)) return 'VIEW_PLATFORM_TENANT_USERS';
+  if (pathname.match(/^\/api\/platform\/tenants\/[^/]+\/modules$/)) return 'VIEW_PLATFORM_TENANT_MODULES';
+  if (pathname.match(/^\/api\/platform\/tenants\/[^/]+\/usage$/)) return 'VIEW_PLATFORM_TENANT_USAGE';
+  if (pathname.match(/^\/api\/platform\/tenants\/[^/]+\/health$/)) return 'VIEW_PLATFORM_TENANT_HEALTH';
+  if (pathname.match(/^\/api\/platform\/tenants\/[^/]+\/subscription$/)) return 'MANAGE_PLATFORM_SUBSCRIPTION';
+  if (pathname.match(/^\/api\/platform\/tenants\/[^/]+\/plan$/)) return 'MANAGE_PLATFORM_SUBSCRIPTION';
+  if (pathname.match(/^\/api\/platform\/tenants\/[^/]+\/entitlements$/)) return 'MANAGE_PLATFORM_ENTITLEMENTS';
+  if (pathname.match(/^\/api\/platform\/tenants\/[^/]+\/suspend$/)) return 'MANAGE_PLATFORM_TENANT_STATUS';
+  if (pathname.match(/^\/api\/platform\/tenants\/[^/]+\/reactivate$/)) return 'MANAGE_PLATFORM_TENANT_STATUS';
+  if (pathname.match(/^\/api\/platform\/support-sessions\/[^/]+\/end$/)) return 'MANAGE_PLATFORM_SUPPORT_SESSIONS';
+  if (pathname.match(/^\/api\/platform\/support-sessions$/)) return method === 'POST' ? 'MANAGE_PLATFORM_SUPPORT_SESSIONS' : 'VIEW_PLATFORM_SUPPORT_SESSIONS';
+  if (pathname.match(/^\/api\/platform\/audit-events$/)) return 'VIEW_PLATFORM_AUDIT_EVENTS';
+  if (pathname.match(/^\/api\/platform\/security-events$/)) return 'VIEW_PLATFORM_SECURITY_EVENTS';
+  if (pathname.match(/^\/api\/platform\/billing-events$/)) return 'VIEW_PLATFORM_BILLING_EVENTS';
+  if (pathname === '/api/platform/auth/bootstrap') return 'VIEW_PLATFORM_ME';
   if (pathname === '/api/me') return 'VIEW_ME';
   if (pathname === '/api/admin') return 'VIEW_ADMIN';
   if (pathname === '/api/exports') return 'VIEW_EXPORTS';
@@ -267,14 +286,19 @@ function serveStatic(req, res, pathname) {
 function sendError(res, error, { context, route, method, requestId }) {
   const status = error.status ?? 500;
   if (context && (status === 403 || status === 409)) {
-    auditDenied(context, {
+    const payload = {
       route,
       method,
       action: routeAction(route, method),
       reason: error.message ?? 'Unexpected error',
       requestId,
       target: error.target ?? ''
-    });
+    };
+    if (context.platformUser) {
+      auditPlatformDenied(context, payload);
+    } else {
+      auditDenied(context, payload);
+    }
   }
   const isProduction = process.env.NODE_ENV === 'production';
   const message = (isProduction && status === 500) ? 'Internal server error' : (error.message ?? 'Unexpected error');
@@ -308,6 +332,9 @@ function route(req, res) {
     if (req.method === 'GET' && url.pathname === '/api/auth/bootstrap') {
       return sendJson(res, 200, getAuthBootstrap());
     }
+    if (req.method === 'GET' && url.pathname === '/api/platform/auth/bootstrap') {
+      return sendJson(res, 200, getPlatformAuthBootstrap());
+    }
     if (req.method === 'POST' && url.pathname === '/api/dev/demo-login') {
       if (!isDemoLoginEnabled()) {
         return sendJson(res, 404, { error: 'Not found', requestId });
@@ -329,11 +356,45 @@ function route(req, res) {
             tenant_id: result.session.tenant_id,
             user_id: result.session.user_id
           },
-          returnTo: '/'
-        }, { 'Set-Cookie': result.cookie });
+        returnTo: '/'
+      }, { 'Set-Cookie': result.cookie });
       }, { context, route: url.pathname, method: req.method, requestId });
     }
-    if (url.pathname.startsWith('/api/')) {
+    if (req.method === 'POST' && url.pathname === '/api/platform/dev/demo-login') {
+      if (!isDemoLoginEnabled()) {
+        return sendJson(res, 404, { error: 'Not found', requestId });
+      }
+      return handleJson(req, res, () => {
+        const payload = parseJsonBody(req.body || {});
+        const result = createPlatformSession(req.headers, {
+          userId: payload.userId || payload.user_id
+        });
+        sendJsonWithHeaders(res, 200, {
+          ok: true,
+          auth: result.auth,
+          session: {
+            authenticated: true,
+            provider: result.session.provider,
+            display_name: result.session.display_name,
+            email: result.session.email,
+            platform_user_id: result.session.platform_user_id
+          },
+          returnTo: '/platform/dashboard'
+        }, { 'Set-Cookie': result.cookie });
+      }, { route: url.pathname, method: req.method, requestId });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/platform/logout') {
+      const cookie = endPlatformWorkspaceSession(req.headers);
+      return sendRedirect(res, '/platform/login', { 'Set-Cookie': cookie });
+    }
+    if (url.pathname.startsWith('/api/platform/')) {
+      context = resolvePlatformContext(req.headers, Object.fromEntries(url.searchParams.entries()));
+      context.requestId = requestId;
+      if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method)) {
+        requireCsrf(req.headers, context.session);
+      }
+    }
+    if (url.pathname.startsWith('/api/') && !url.pathname.startsWith('/api/platform/')) {
       context = resolveContext(req.headers, Object.fromEntries(url.searchParams.entries()));
       context.requestId = requestId;
       if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method) && authEnabled() && !url.pathname.startsWith('/api/bootstrap')) {
@@ -356,8 +417,8 @@ function route(req, res) {
         const row = dbSelectOne('SELECT COALESCE(MAX(version),0) AS version FROM schema_migrations');
         const currentVersion = Number(row?.version ?? dbInfo.currentVersion ?? 0);
         dbOk = process.env.NODE_ENV === 'production'
-          ? dbInfo.provider === 'postgres' && currentVersion >= 20
-          : (dbInfo.provider === 'postgres' ? currentVersion >= 20 : currentVersion > 0);
+          ? dbInfo.provider === 'postgres' && currentVersion >= 21
+          : (dbInfo.provider === 'postgres' ? currentVersion >= 21 : currentVersion > 0);
         try {
           const storageProbe = probeEvidenceStorage();
           storageOk = Boolean(storageProbe?.reachable);
@@ -391,6 +452,78 @@ function route(req, res) {
     }
     if (req.method === 'GET' && url.pathname === '/api/bootstrap') {
       return sendJson(res, 200, { ...listBootstrap(context), compliance: listCompliance(context) });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/platform/me') {
+      return sendJson(res, 200, getPlatformMe(context));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/platform/summary') {
+      return sendJson(res, 200, getPlatformSummary(context));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/platform/tenants') {
+      return sendJson(res, 200, { tenants: listPlatformTenants(context) });
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/platform\/tenants\/[^/]+$/)) {
+      const tenantId = url.pathname.split('/')[4];
+      return sendJson(res, 200, getPlatformTenantDetail(context, tenantId));
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/platform\/tenants\/[^/]+\/users$/)) {
+      const tenantId = url.pathname.split('/')[4];
+      return sendJson(res, 200, getPlatformTenantUsers(context, tenantId));
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/platform\/tenants\/[^/]+\/modules$/)) {
+      const tenantId = url.pathname.split('/')[4];
+      return sendJson(res, 200, getPlatformTenantModules(context, tenantId));
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/platform\/tenants\/[^/]+\/usage$/)) {
+      const tenantId = url.pathname.split('/')[4];
+      return sendJson(res, 200, getPlatformTenantUsage(context, tenantId));
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/platform\/tenants\/[^/]+\/health$/)) {
+      const tenantId = url.pathname.split('/')[4];
+      return sendJson(res, 200, getPlatformTenantHealth(context, tenantId));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/platform/audit-events') {
+      return sendJson(res, 200, listPlatformAuditEvents(context));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/platform/security-events') {
+      return sendJson(res, 200, listPlatformSecurityEvents(context));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/platform/billing-events') {
+      return sendJson(res, 200, listPlatformBillingEvents(context));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/platform/support-sessions') {
+      return sendJson(res, 200, listPlatformSupportSessions(context));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/platform/support-sessions') {
+      return handleJson(req, res, () => {
+        const body = parseJsonBody(req.body);
+        const tenantId = body.tenantId || body.tenant_id || '';
+        return sendJson(res, 201, createPlatformSupportSession(context, tenantId, body));
+      }, { context, route: url.pathname, method: req.method, requestId });
+    }
+    if (req.method === 'PATCH' && url.pathname.match(/^\/api\/platform\/tenants\/[^/]+\/subscription$/)) {
+      const tenantId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, updatePlatformTenantSubscription(context, tenantId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method, requestId });
+    }
+    if (req.method === 'PATCH' && url.pathname.match(/^\/api\/platform\/tenants\/[^/]+\/plan$/)) {
+      const tenantId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, updatePlatformTenantPlan(context, tenantId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method, requestId });
+    }
+    if (req.method === 'PATCH' && url.pathname.match(/^\/api\/platform\/tenants\/[^/]+\/entitlements$/)) {
+      const tenantId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, updatePlatformTenantEntitlements(context, tenantId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method, requestId });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/platform\/support-sessions\/[^/]+\/end$/)) {
+      const sessionId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, endPlatformSupportSession(context, sessionId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method, requestId });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/platform\/tenants\/[^/]+\/suspend$/)) {
+      const tenantId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, suspendPlatformTenant(context, tenantId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method, requestId });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/platform\/tenants\/[^/]+\/reactivate$/)) {
+      const tenantId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, reactivatePlatformTenant(context, tenantId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method, requestId });
     }
     if (req.method === 'GET' && url.pathname === '/api/users') {
       return sendJson(res, 200, { users: listUsers(context) });

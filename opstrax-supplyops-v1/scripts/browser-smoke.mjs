@@ -303,6 +303,105 @@ async function checkRestrictedTenant(browser, port) {
   await page.context().close();
 }
 
+async function checkPlatformControlPlane(browser, port) {
+  process.stdout.write('\n[browser] Platform control plane\n');
+  const page = await createPage(browser);
+
+  await page.goto(`http://localhost:${port}/platform`);
+  await waitForApp(page);
+
+  await check('Platform auth gate appears', async () => {
+    const text = await page.textContent('#app');
+    if (!text.includes('Platform Admin Sign-In')) throw new Error('Platform auth gate missing');
+    if (!text.includes('Enter Platform Workspace')) throw new Error('Platform demo entry missing');
+    if (!text.includes('Local demo mode only')) throw new Error('Platform helper text missing');
+  });
+
+  await page.locator('button[data-action="platform-demo-login"]').click();
+  await page.waitForSelector('text=Platform Overview', { timeout: 12000 });
+  await page.waitForSelector('text=Tenant Directory', { timeout: 12000 });
+
+  await check('Platform dashboard loads after demo login', async () => {
+    const text = await page.textContent('#app');
+    const required = ['Platform Dashboard', 'Tenant Directory', 'Subscription & Plans', 'Support Sessions', 'Security & Audit', 'System Health'];
+    for (const needle of required) {
+      if (!text.includes(needle)) throw new Error(`Missing ${needle}`);
+    }
+    if (!text.includes('IntelliFlow Systems') || !text.includes('Evostel LLC') || !text.includes('Northstar Logistics')) {
+      throw new Error('Platform tenant directory missing seeded tenants');
+    }
+    if (!text.includes('Government Control Plane') || !text.includes('Enterprise Logistics Plan') || !text.includes('Starter Restricted Ops Plan')) {
+      throw new Error('Platform plan tiers missing from tenant directory');
+    }
+  });
+
+  await check('Platform /api/platform/me reflects platform owner workspace', async () => {
+    const payload = await page.evaluate(async () => (await fetch('/api/platform/me', { credentials: 'include' })).json());
+    if (payload.user?.role_key !== 'PLATFORM_OWNER') throw new Error(`Unexpected platform role ${payload.user?.role_key}`);
+    if (!Array.isArray(payload.capabilities) || payload.capabilities.length === 0) throw new Error('Platform capabilities missing');
+    if (payload.tenant) throw new Error('Platform session should not expose a tenant');
+  });
+
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: join(screenshotDir, '02-platform-dashboard.png'), fullPage: false });
+
+  const supportNav = page.locator('.nav-item').filter({ hasText: /Support Sessions/i }).first();
+  if ((await supportNav.count()) > 0) {
+    await supportNav.click();
+    await page.waitForTimeout(450);
+    await check('Platform support sessions page exposes status lifecycle', async () => {
+      const text = await page.textContent('#app');
+      const required = ['Support Sessions', 'REQUESTED', 'ACTIVE', 'EXPIRED', 'REVOKED', 'DENIED'];
+      for (const needle of required) {
+        if (!text.includes(needle)) throw new Error(`Missing support lifecycle value: ${needle}`);
+      }
+      if (!text.includes('Northstar Logistics')) throw new Error('Northstar support session missing');
+      if ((await page.locator('button[data-action="platform-end-support-session"]').count()) === 0) {
+        throw new Error('Support end action missing');
+      }
+    });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: join(screenshotDir, '02-platform-support-sessions.png'), fullPage: false });
+  }
+
+  const tenantDirectoryNav = page.locator('.nav-item').filter({ hasText: /Tenant Directory/i }).first();
+  if ((await tenantDirectoryNav.count()) > 0) {
+    await tenantDirectoryNav.click();
+    await page.waitForURL(/\/platform\/tenants$/, { timeout: 12000 });
+  }
+
+  const tenantRow = page.locator('tr[data-platform-tenant="tenant_intelliflow_systems"]').first();
+  await tenantRow.waitFor({ state: 'visible', timeout: 12000 });
+  await tenantRow.click();
+  await page.waitForURL(/\/platform\/tenants\/tenant_intelliflow_systems/, { timeout: 12000 });
+  await page.waitForTimeout(1200);
+  await page.waitForFunction(() => {
+    const text = document.querySelector('.drawer-shell')?.textContent || '';
+    return text.includes('Government Control Plane');
+  }, { timeout: 12000 });
+  const planTab = page.locator('.drawer-tab[data-drawer-tab="Plan"]').first();
+  if ((await planTab.count()) > 0) {
+    await planTab.click();
+    await page.waitForFunction(() => {
+      const text = document.querySelector('.drawer-shell')?.textContent || '';
+      return text.includes('Plan code') && text.includes('Government Control Plane');
+    }, { timeout: 12000 });
+  }
+  await check('Platform tenant detail drawer opens', async () => {
+    const text = await page.textContent('.drawer-shell');
+    if (!text.includes('IntelliFlow Systems') || !text.includes('Government Control Plane') || !text.includes('Plan code')) {
+      throw new Error('Platform tenant detail not visible');
+    }
+    if (!text.includes('Support sessions') && !text.includes('Support posture') && !text.includes('Plan code')) {
+      throw new Error('Platform detail drawer missing content');
+    }
+  });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: join(screenshotDir, '03-platform-tenant-detail.png'), fullPage: false });
+
+  await page.context().close();
+}
+
 async function checkNoConsoleErrors(browser, port) {
   process.stdout.write('\n[browser] Console error check\n');
   const page = await createPage(browser);
@@ -367,6 +466,7 @@ async function main() {
     await checkNoConsoleErrors(browser, port);
     await checkDemoFlow(page, port);
     await checkFullTenantShell(page, port);
+    await checkPlatformControlPlane(browser, port);
     await checkRestrictedTenant(browser, port);
 
     await page.context().close();

@@ -119,6 +119,7 @@ a:focus-visible{text-decoration:none}
   position:fixed;
   inset:0 auto 0 0;
   width:var(--sidebar);
+  z-index:30;
   background:linear-gradient(180deg, rgba(8,18,34,.95) 0%, rgba(13,23,42,.94) 100%);
   color:#dbe5f4;
   padding:22px 18px;

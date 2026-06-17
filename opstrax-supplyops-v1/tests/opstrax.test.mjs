@@ -376,7 +376,7 @@ test('migration upgrade advances an older database without losing tenant data', 
     }
   }).toString('utf8').trim();
   const payload = JSON.parse(result);
-  assert.equal(payload.version, 20);
+  assert.equal(payload.version, 22);
   assert.equal(payload.tables, 1);
 });
 
@@ -902,6 +902,123 @@ test('full nav appears after demo login', async () => {
   }
 });
 
+test('platform auth bootstrap exposes separate workspace entry in local demo mode', async () => {
+  const { response, payload } = await httpRequest('/api/platform/auth/bootstrap');
+  assert.equal(response.status, 200);
+  assert.equal(payload.login_required, true);
+  assert.equal(payload.demo_login_enabled, true);
+});
+
+test('platform demo login and platform me are separate from tenant auth', async () => {
+  const platformLogin = await httpRequest('/api/platform/dev/demo-login', {
+    method: 'POST',
+    body: {}
+  });
+  assert.equal(platformLogin.response.status, 200);
+  const platformCookie = platformLogin.response.headers.get('set-cookie');
+  assert.ok(platformCookie, 'platform demo login must set a platform session cookie');
+
+  const platformMe = await httpRequest('/api/platform/me', {
+    headers: { cookie: platformCookie }
+  });
+  assert.equal(platformMe.response.status, 200);
+  assert.equal(platformMe.payload.user.role_key, 'PLATFORM_OWNER');
+  assert.ok(Array.isArray(platformMe.payload.capabilities));
+  assert.ok(platformMe.payload.capabilities.length > 0);
+
+  const tenantMe = await httpRequest('/api/me', {
+    headers: { cookie: platformCookie }
+  });
+  assert.equal(tenantMe.response.status, 401);
+});
+
+test('tenant session cannot access platform APIs', async () => {
+  const tenantLogin = await httpRequest('/api/dev/demo-login', {
+    method: 'POST',
+    body: {}
+  });
+  const cookie = tenantLogin.response.headers.get('set-cookie');
+  const { response, payload } = await httpRequest('/api/platform/me', {
+    headers: { cookie }
+  });
+  assert.equal(response.status, 401);
+  assert.match(payload.error, /Platform authentication required/);
+});
+
+test('platform summary and tenant directory expose control-plane posture', async () => {
+  const login = await httpRequest('/api/platform/dev/demo-login', {
+    method: 'POST',
+    body: {}
+  });
+  const cookie = login.response.headers.get('set-cookie');
+  const summary = await httpRequest('/api/platform/summary', { headers: { cookie } });
+  assert.equal(summary.response.status, 200);
+  assert.ok(summary.payload.summary.totalTenants >= 3);
+  assert.ok(summary.payload.summary.activeTenants >= 1);
+  assert.ok(summary.payload.summary.requestedSupportSessions >= 1);
+  assert.ok(summary.payload.summary.activeSupportSessions >= 1);
+
+  const tenants = await httpRequest('/api/platform/tenants', { headers: { cookie } });
+  assert.equal(tenants.response.status, 200);
+  assert.ok(Array.isArray(tenants.payload.tenants));
+  assert.ok(tenants.payload.tenants.some((tenant) => tenant.id === 'tenant_intelliflow_systems'));
+  assert.ok(tenants.payload.tenants.some((tenant) => tenant.id === 'tenant_evostel'));
+  assert.ok(tenants.payload.tenants.some((tenant) => tenant.id === 'tenant_northstar_logistics'));
+  assert.ok(tenants.payload.tenants.some((tenant) => tenant.plan_code === 'GOVERNMENT'));
+  assert.ok(tenants.payload.tenants.some((tenant) => tenant.plan_code === 'ENTERPRISE'));
+  assert.ok(tenants.payload.tenants.some((tenant) => tenant.plan_code === 'STARTER'));
+});
+
+test('platform plan updates and support session lifecycle are auditable', async () => {
+  const login = await httpRequest('/api/platform/dev/demo-login', {
+    method: 'POST',
+    body: {}
+  });
+  const cookie = login.response.headers.get('set-cookie');
+  const platformMe = await httpRequest('/api/platform/me', {
+    headers: { cookie }
+  });
+  assert.equal(platformMe.response.status, 200);
+  const csrfToken = platformMe.payload.session?.csrf_token;
+  assert.ok(csrfToken, 'platform demo session must expose a CSRF token');
+  const createSession = await httpRequest('/api/platform/support-sessions', {
+    method: 'POST',
+    headers: { cookie, 'x-csrf-token': csrfToken },
+    body: {
+      tenantId: 'tenant_intelliflow_systems',
+      sessionType: 'ADVISORY',
+      summary: 'Lifecycle test support session',
+      reason: 'Lifecycle test support session'
+    }
+  });
+  assert.equal(createSession.response.status, 201);
+  assert.equal(createSession.payload.session.status, 'REQUESTED');
+  const endSession = await httpRequest(`/api/platform/support-sessions/${createSession.payload.session.id}/end`, {
+    method: 'POST',
+    headers: { cookie, 'x-csrf-token': csrfToken },
+    body: { status: 'EXPIRED', summary: 'Lifecycle test complete', reason: 'Lifecycle test complete' }
+  });
+  assert.equal(endSession.response.status, 200);
+  assert.equal(endSession.payload.session.status, 'EXPIRED');
+
+  const updatePlan = await httpRequest('/api/platform/tenants/tenant_northstar_logistics/plan', {
+    method: 'PATCH',
+    headers: { cookie, 'x-csrf-token': csrfToken },
+    body: {
+      planCode: 'CUSTOM',
+      planName: 'Northstar Custom Control Plane',
+      billingCycle: 'ANNUAL',
+      seatLimit: 20,
+      subscriptionStatus: 'ACTIVE'
+    }
+  });
+  assert.equal(updatePlan.response.status, 200);
+  assert.equal(updatePlan.payload.plan.plan_code, 'CUSTOM');
+  assert.equal(updatePlan.payload.plan.plan_name, 'Northstar Custom Control Plane');
+  assert.equal(updatePlan.payload.subscription.seat_limit, 20);
+  assert.equal(updatePlan.payload.subscription.status, 'ACTIVE');
+});
+
 test('command center renders commercial language and readiness panels', () => {
   const previous = { identity: shellState.identity, bootstrap: shellState.bootstrap, data: shellState.data, page: shellState.page, search: shellState.search };
   try {
@@ -983,7 +1100,7 @@ test('deep module pages render enterprise headers and no stale demo copy', () =>
       complianceAccessReviews: { reviews: [{ status: 'CURRENT', review_name: 'Q2 access review', reviewer_name: 'Avery Grant', started_at: new Date().toISOString(), due_at: null, total_entries: 2, reviewed_entries: 2, revoked_entries: 0, entries: [] }] },
       complianceAiGovernance: { logs: [{ actor_name: 'Avery Grant', actor_role: 'admin', module: 'AI Operations', agent_key: 'ops-copilot', event_type: 'ADVISORY', data_scope: 'tenant', provider_status: 'NOT_CONFIGURED', human_approval_required: true, human_approved_at: null, created_at: new Date().toISOString() }], summary: { total: 1 } },
       complianceSecurityPosture: { posture: { sso: { status: 'CONFIGURATION_REQUIRED' } } },
-      complianceAvailabilityPosture: { posture: { database: { status: 'CURRENT', migrationVersion: 20, expectedVersion: 20, path: 'demo' } } },
+      complianceAvailabilityPosture: { posture: { database: { status: 'CURRENT', migrationVersion: 22, expectedVersion: 22, path: 'demo' } } },
       aiSummary: { providerStatus: 'NOT_CONFIGURED', open: 1, approvalPending: 1, totalRuns: 1 },
       aiRecommendations: { recommendations: [{ id: 'ai-1', category: 'Procurement', title: 'Review supplier risk', severity: 'MEDIUM', agent_key: 'procurement-advisor', human_summary: 'Supplier risk is elevated', status: 'OPEN' }] },
       aiRuns: { runs: [{ id: 'run-1', created_at: new Date().toISOString() }] },
@@ -3620,7 +3737,7 @@ test('verify-migration script exits 0 against test database', () => {
     env: { ...process.env, OPSTRAX_DB_PATH: process.env.OPSTRAX_DB_PATH },
     encoding: 'utf8'
   });
-  assert.ok(result.includes('OK All 20 migrations verified'), 'verify-migration must confirm all 20 migrations');
+  assert.ok(result.includes('OK All 22 migrations verified'), 'verify-migration must confirm all 22 migrations');
 });
 
 test('production 500 errors do not expose stack traces in response body', async () => {
@@ -4045,7 +4162,7 @@ test('getAvailabilityPosture returns structured posture with DB and health check
   assert.ok(result.posture, 'posture must be present');
   assert.strictEqual(result.posture.healthEndpoints?.liveness?.path, '/healthz', 'liveness path must be /healthz');
   assert.strictEqual(result.posture.healthEndpoints?.readiness?.path, '/healthz/ready', 'readiness path must be /healthz/ready');
-  assert.ok(result.posture.database?.migrationVersion >= 20, `DB migration version must be ≥20, got ${result.posture.database?.migrationVersion}`);
+  assert.ok(result.posture.database?.migrationVersion >= 22, `DB migration version must be ≥22, got ${result.posture.database?.migrationVersion}`);
   assert.strictEqual(result.posture.database?.status, 'CURRENT', 'DB must be CURRENT after migration 020');
   assert.ok(result.posture.backup?.status, 'backup status must be present');
   assert.ok(result.posture.monitoring?.status, 'monitoring status must be present');
