@@ -6,10 +6,24 @@ This note captures the production wiring for the Phase 3F release path. It docum
 
 - Local RC1 demo: `http://localhost:9899`
 - Production-validation stack: `http://localhost:9900`
+- Staging URL: not provided yet
 - Tenant workspace uses the main shell and tenant cookies.
 - Platform admin uses `/platform` and platform-only cookies.
 - Local demo access is only available when `NODE_ENV !== production` and `OPSTRAX_ALLOW_DEV_CONTEXT=1`.
 - Production never exposes the demo gate or demo login routes.
+
+## Staging deployment target checklist
+
+- [ ] Staging base URL
+- [ ] Tenant OIDC issuer/client/secret
+- [ ] Platform OIDC issuer/client/secret
+- [ ] PostgreSQL connection string
+- [ ] S3-compatible storage endpoint, bucket, and keys
+- [ ] Session secrets
+- [ ] Secure cookie settings
+- [ ] Monitoring destination and alert rules
+- [ ] Backup job ownership
+- [ ] Restore drill ownership
 
 ## Railway / backend deployment
 
