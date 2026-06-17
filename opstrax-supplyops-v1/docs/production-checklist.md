@@ -1,16 +1,16 @@
 # OpsTrax SupplyOps — Production Checklist
 
-Complete this checklist before go-live. Status values: `Ready`, `Configured`, `Verified`, `Blocked`, `Roadmap`.
+Complete this checklist before go-live. Status values: `Ready`, `Configured`, `Verified`, `Verified in validation stack`, `Requires live secrets`, `Blocked`, `Roadmap`.
 
 ## Go-Live Matrix
 
 | Area | Status | Proof / note |
 |---|---|---|
-| Auth / SSO | Blocked | Real tenant OIDC configured and `/auth/oidc/start` succeeds. |
-| Platform Admin | Blocked | Real platform OIDC configured and `/platform/auth/oidc/start` succeeds. |
-| Tenant Workspace | Verified | `/api/me` returns the seeded tenant identity in local demo and the production gate stays closed until OIDC is configured. |
-| Database / Postgres | Configured | `DATABASE_PROVIDER=postgres` and `DATABASE_URL` are required in production. |
-| Evidence Storage | Configured | `EVIDENCE_STORAGE_PROVIDER=s3` with private bucket and signed URLs. |
+| Auth / SSO | Blocked | Real tenant OIDC registration, secrets, and callback URLs still need to be wired in the deployment target. |
+| Platform Admin | Blocked | Real platform OIDC registration, secrets, and callback URLs still need to be wired in the deployment target. |
+| Tenant Workspace | Verified in validation stack | Local RC1 demo and tenant workspace work; production gate stays closed until OIDC is configured. |
+| Database / Postgres | Verified in validation stack | `DATABASE_PROVIDER=postgres` and `DATABASE_URL` validated against the production runtime path. |
+| Evidence Storage | Verified in validation stack | `EVIDENCE_STORAGE_PROVIDER=s3` with a private bucket and signed URLs validated against MinIO/S3. |
 | Security Headers | Verified | `X-Content-Type-Options`, `X-Frame-Options`, CSP, and referrer policy are emitted. |
 | Session Security | Configured | `SESSION_SECRET`, `PLATFORM_SESSION_SECRET`, `COOKIE_SECURE=true`. |
 | Tenant Isolation | Verified | All service-layer reads and writes are tenant-scoped. |
@@ -18,8 +18,8 @@ Complete this checklist before go-live. Status values: `Ready`, `Configured`, `V
 | Audit Logging | Verified | Denied and privileged actions create audit events. |
 | Performance Smoke | Verified | `npm run perf-smoke` passes. |
 | Browser Smoke | Verified | `npm run browser-smoke` passes for the RC1 shell and core modules. |
-| Backup / Restore | Configured | Verification records exist; production backup jobs still need external scheduling. |
-| Monitoring / Alerts | Configured | `/healthz` and `/healthz/ready` are present; external alerting still needs deployment wiring. |
+| Backup / Restore | Blocked | External backup jobs, restore drill scheduling, and live evidence retention wiring still need deployment ownership. |
+| Monitoring / Alerts | Blocked | External alerting, paging, and log shipping still need deployment wiring. |
 | ERP Connector | Roadmap | Connector abstraction exists; external ERP credentials and routing still need production setup. |
 | OCR / Invoice Capture | Roadmap | Invoice OCR is not part of Phase 3E. |
 | CSV / PDF Reports | Roadmap | Export formats are not yet a production deliverable. |
@@ -38,6 +38,9 @@ Complete this checklist before go-live. Status values: `Ready`, `Configured`, `V
 - [ ] `PLATFORM_SESSION_SECRET` is injected from a secrets manager
 - [ ] `COOKIE_SECURE=true`
 - [ ] `COOKIE_SAME_SITE=lax` or `strict`
+- [ ] `EVIDENCE_STORAGE_PROVIDER=s3`
+- [ ] `S3_BUCKET`
+- [ ] `S3_REGION`
 - [ ] `.env` files are not committed
 - [ ] SQLite runtime files are not deployed to production
 
@@ -48,11 +51,15 @@ Complete this checklist before go-live. Status values: `Ready`, `Configured`, `V
 - [ ] `OIDC_CLIENT_ID`
 - [ ] `OIDC_CLIENT_SECRET`
 - [ ] `OIDC_REDIRECT_URI`
+- [ ] `OIDC_LOGOUT_REDIRECT_URI`
+- [ ] `OIDC_SCOPES`
 - [ ] `PLATFORM_AUTH_MODE=oidc`
 - [ ] `PLATFORM_OIDC_ISSUER`
 - [ ] `PLATFORM_OIDC_CLIENT_ID`
 - [ ] `PLATFORM_OIDC_CLIENT_SECRET`
 - [ ] `PLATFORM_OIDC_REDIRECT_URI`
+- [ ] `PLATFORM_OIDC_LOGOUT_REDIRECT_URI`
+- [ ] `PLATFORM_OIDC_SCOPES`
 - [ ] Tenant and platform redirect URIs exactly match the identity provider registrations
 - [ ] OIDC login completes without exposing demo access
 
@@ -81,6 +88,8 @@ Complete this checklist before go-live. Status values: `Ready`, `Configured`, `V
 - [ ] `GET /healthz/ready` returns 200 only when DB, storage, and auth posture are ready
 - [ ] Error correlation IDs are captured in logs
 - [ ] Failed auth, export, integration, and job events are monitored
+- [ ] Monitoring and alerting runbook exists
+- [ ] Support session lifecycle events are captured
 
 ## CI / Verification
 
@@ -91,6 +100,8 @@ Complete this checklist before go-live. Status values: `Ready`, `Configured`, `V
 - [ ] `npm run verify:postgres`
 - [ ] `npm run verify:storage`
 - [ ] `npm run verify:production-runtime`
+- [ ] `npm run go-live-check`
+- [ ] `npm run verify:backup-restore` when a real authenticated session cookie is available
 - [ ] `npm run perf-smoke`
 - [ ] `npm run browser-smoke`
 

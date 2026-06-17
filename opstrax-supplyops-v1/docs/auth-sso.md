@@ -11,6 +11,20 @@ The backend owns all auth decisions. The browser only renders the gate and redir
 
 Production tenant auth is OIDC-based.
 
+### Registration checklist
+
+| Field | Value |
+|---|---|
+| Issuer URL | `OIDC_ISSUER` |
+| Client ID | `OIDC_CLIENT_ID` |
+| Client Secret | `OIDC_CLIENT_SECRET` |
+| Redirect URI | `OIDC_REDIRECT_URI` |
+| Logout Redirect URI | `OIDC_LOGOUT_REDIRECT_URI` |
+| Scopes | `OIDC_SCOPES` |
+| Claim mapping | `email` or `preferred_username` to tenant user email; `sub` to identity subject |
+| Allowed users/groups | Configure in the customer IdP; only mapped users may sign in |
+| Disabled user behavior | Disabled users are denied at login and cannot receive a session |
+
 Required env vars:
 
 - `AUTH_MODE=oidc`
@@ -28,6 +42,20 @@ Required env vars:
 ## Platform admin auth
 
 Platform admin is a separate session and a separate IdP configuration.
+
+### Registration checklist
+
+| Field | Value |
+|---|---|
+| Issuer URL | `PLATFORM_OIDC_ISSUER` |
+| Client ID | `PLATFORM_OIDC_CLIENT_ID` |
+| Client Secret | `PLATFORM_OIDC_CLIENT_SECRET` |
+| Redirect URI | `PLATFORM_OIDC_REDIRECT_URI` |
+| Logout Redirect URI | `PLATFORM_OIDC_LOGOUT_REDIRECT_URI` |
+| Scopes | `PLATFORM_OIDC_SCOPES` |
+| Claim mapping | `email` or `preferred_username` to platform admin email; `sub` to identity subject |
+| Allowed users/groups | Restrict to explicitly assigned platform admins/support users |
+| Disabled user behavior | Disabled platform users are denied and cannot receive a session |
 
 Required env vars:
 
@@ -50,6 +78,14 @@ Local demo access is only available when all of the following are true:
 
 In that mode, the SSO gate shows **Enter Demo Workspace** for the seeded IntelliFlow Systems workspace. Production never shows that button.
 
+## Callback URL checklist
+
+- Tenant callback: `.../auth/oidc/callback`
+- Tenant logout redirect: `.../auth/login`
+- Platform callback: `.../platform/auth/oidc/callback`
+- Platform logout redirect: `.../platform/login`
+- Exact URLs must match the IdP registration and the deployment host.
+
 ## Startup behavior
 
 - Production startup fails if tenant OIDC is incomplete.
@@ -63,6 +99,7 @@ In that mode, the SSO gate shows **Enter Demo Workspace** for the seeded Intelli
 - `401` from `/api/me` means the session is not authenticated.
 - `403` from a protected API means the user is authenticated but lacks permission or scope.
 - `503` from login-start routes means the OIDC surface is not configured yet.
+- Local demo routes return `404` in production.
 
 ## Verification commands
 

@@ -1,6 +1,6 @@
 # OpsTrax Deployment Prep
 
-This note captures the production wiring for the Phase 3E release path. It documents the current runtime split without overstating go-live readiness.
+This note captures the production wiring for the Phase 3F release path. It documents the current runtime split, staging validation flow, and the remaining go-live blockers without overstating live readiness.
 
 ## Runtime targets
 
@@ -8,6 +8,8 @@ This note captures the production wiring for the Phase 3E release path. It docum
 - Production-validation stack: `http://localhost:9900`
 - Tenant workspace uses the main shell and tenant cookies.
 - Platform admin uses `/platform` and platform-only cookies.
+- Local demo access is only available when `NODE_ENV !== production` and `OPSTRAX_ALLOW_DEV_CONTEXT=1`.
+- Production never exposes the demo gate or demo login routes.
 
 ## Railway / backend deployment
 
@@ -56,6 +58,24 @@ This note captures the production wiring for the Phase 3E release path. It docum
 - `PLATFORM_OIDC_LOGOUT_REDIRECT_URI`
 - `PLATFORM_OIDC_SCOPES`
 
+### Shared runtime
+
+- `NODE_ENV=production`
+- `PORT`
+- `APP_BASE_URL`
+- `PLATFORM_BASE_URL`
+- `SESSION_SECRET`
+- `PLATFORM_SESSION_SECRET`
+- `COOKIE_SECURE=true`
+- `COOKIE_SAME_SITE=lax` or `strict`
+- `DATABASE_PROVIDER=postgres`
+- `DATABASE_URL`
+- `EVIDENCE_STORAGE_PROVIDER=s3`
+- `S3_BUCKET`
+- `S3_REGION`
+- `S3_ENDPOINT` if using MinIO or another S3-compatible service
+- `EVIDENCE_SIGNING_SECRET`
+
 ### Evidence storage
 
 - `EVIDENCE_STORAGE_PROVIDER=s3`
@@ -75,8 +95,25 @@ This note captures the production wiring for the Phase 3E release path. It docum
 - `npm run verify:postgres`
 - `npm run verify:storage`
 - `npm run verify:production-runtime`
+- `npm run go-live-check`
+- `npm run verify:backup-restore` with a real authenticated session cookie when backup/restore posture is being checked
 - `npm run perf-smoke`
 - `npm run browser-smoke`
+
+## Staging validation flow
+
+1. Deploy the app to staging with production-style configuration.
+2. Run database migrations.
+3. Run `npm run go-live-check`.
+4. Confirm `/healthz` and `/healthz/ready` are green.
+5. Verify tenant OIDC login.
+6. Verify platform OIDC login.
+7. Verify tenant workspace navigation and restricted tenant denial.
+8. Verify signed evidence access with a real authenticated session.
+9. Verify support-session audit records exist.
+10. Verify feature entitlement changes alter visible navigation and API access.
+11. Verify backup and restore posture with `npm run verify:backup-restore` using a real authenticated session cookie.
+12. Capture the rollback command and restore procedure before go-live.
 
 ## Deployment rules
 

@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 
@@ -253,6 +254,84 @@ async function httpRequest(path, { method = 'GET', headers = {}, body } = {}) {
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+}
+
+async function createMockServer(routes) {
+  const server = createServer((req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1');
+    const route = routes[`${req.method} ${url.pathname}`];
+    if (!route) {
+      res.writeHead(404, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
+      return;
+    }
+    const result = route({ req, url });
+    const status = result?.status ?? 200;
+    const headers = { 'content-type': 'application/json', ...(result?.headers || {}) };
+    res.writeHead(status, headers);
+    res.end(JSON.stringify(result?.body ?? {}));
+  });
+  await new Promise((resolve) => server.listen(0, resolve));
+  return server;
+}
+
+function runNodeScript(script, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [script], {
+      cwd: process.cwd(),
+      env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+function goLiveEnv(baseUrl, extra = {}) {
+  return {
+    ...process.env,
+    ALLOW_DEV_CONTEXT: '',
+    OPSTRAX_ALLOW_DEV_CONTEXT: '',
+    NODE_ENV: 'production',
+    DATABASE_PROVIDER: 'postgres',
+    DATABASE_URL: 'postgres://user:pass@db.example/opstrax',
+    AUTH_MODE: 'oidc',
+    OIDC_ISSUER: 'https://tenant-idp.example',
+    OIDC_CLIENT_ID: 'tenant-client',
+    OIDC_CLIENT_SECRET: 'tenant-secret',
+    OIDC_REDIRECT_URI: 'https://tenant.example/auth/oidc/callback',
+    OIDC_LOGOUT_REDIRECT_URI: 'https://tenant.example/auth/login',
+    OIDC_SCOPES: 'openid profile email',
+    PLATFORM_AUTH_MODE: 'oidc',
+    PLATFORM_OIDC_ISSUER: 'https://platform-idp.example',
+    PLATFORM_OIDC_CLIENT_ID: 'platform-client',
+    PLATFORM_OIDC_CLIENT_SECRET: 'platform-secret',
+    PLATFORM_OIDC_REDIRECT_URI: 'https://platform.example/platform/auth/oidc/callback',
+    PLATFORM_OIDC_LOGOUT_REDIRECT_URI: 'https://platform.example/platform/login',
+    PLATFORM_OIDC_SCOPES: 'openid profile email',
+    SESSION_SECRET: 'tenant-session-secret',
+    PLATFORM_SESSION_SECRET: 'platform-session-secret',
+    COOKIE_SECURE: 'true',
+    COOKIE_SAME_SITE: 'lax',
+    EVIDENCE_STORAGE_PROVIDER: 's3',
+    S3_BUCKET: 'opstrax-evidence',
+    S3_REGION: 'us-east-1',
+    EVIDENCE_SIGNING_SECRET: 'evidence-signing-secret',
+    APP_BASE_URL: 'https://tenant.example',
+    PLATFORM_BASE_URL: 'https://platform.example',
+    RUNTIME_BASE_URL: baseUrl,
+    ...extra
+  };
 }
 
 test('bootstrap resolves a tenant-scoped session', () => {
@@ -4713,5 +4792,214 @@ test('compliancePage renders with tabs and real control count', () => {
     shellState.bootstrap = savedBootstrap;
     shellState.data = savedData;
     shellState.complianceTab = savedTab;
+  }
+});
+
+test('go-live-check fails without production env', () => {
+  let failed = false;
+  try {
+    execFileSync(process.execPath, ['scripts/go-live-check.mjs'], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        NODE_ENV: 'development'
+      },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+  } catch (error) {
+    failed = true;
+    assert.match(String(error.stderr || error.stdout || error.message), /NODE_ENV=production is required/);
+  }
+  assert.equal(failed, true);
+});
+
+test('go-live-check detects missing storage config', () => {
+  let failed = false;
+  try {
+    execFileSync(process.execPath, ['scripts/go-live-check.mjs'], {
+      cwd: process.cwd(),
+      env: goLiveEnv('http://127.0.0.1:1', {
+        EVIDENCE_STORAGE_PROVIDER: '',
+        S3_BUCKET: '',
+        S3_REGION: '',
+        EVIDENCE_SIGNING_SECRET: ''
+      }),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+  } catch (error) {
+    failed = true;
+    assert.match(String(error.stderr || error.stdout || error.message), /EVIDENCE_STORAGE_PROVIDER=s3 is required|S3_BUCKET is required|S3_REGION is required|EVIDENCE_SIGNING_SECRET is required/);
+  }
+  assert.equal(failed, true);
+});
+
+test('go-live-check detects missing tenant OIDC config', () => {
+  let failed = false;
+  try {
+    execFileSync(process.execPath, ['scripts/go-live-check.mjs'], {
+      cwd: process.cwd(),
+      env: goLiveEnv('http://127.0.0.1:1', {
+        OIDC_ISSUER: ''
+      }),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+  } catch (error) {
+    failed = true;
+    assert.match(String(error.stderr || error.stdout || error.message), /OIDC_ISSUER is required/);
+  }
+  assert.equal(failed, true);
+});
+
+test('go-live-check detects missing platform OIDC config', () => {
+  let failed = false;
+  try {
+    execFileSync(process.execPath, ['scripts/go-live-check.mjs'], {
+      cwd: process.cwd(),
+      env: goLiveEnv('http://127.0.0.1:1', {
+        PLATFORM_OIDC_ISSUER: ''
+      }),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+  } catch (error) {
+    failed = true;
+    assert.match(String(error.stderr || error.stdout || error.message), /PLATFORM_OIDC_ISSUER is required/);
+  }
+  assert.equal(failed, true);
+});
+
+test('go-live-check passes with mocked production env and no secrets in bootstrap responses', async () => {
+  const server = await createMockServer({
+    'GET /healthz': () => ({ status: 200, body: { ok: true } }),
+    'GET /healthz/ready': () => ({ status: 200, body: { ok: true, checks: { db: 'ok', storage: 'ok', auth: 'ok', integration: 'ok', queue: 'ok' } } }),
+    'GET /api/me': () => ({ status: 401, body: { error: 'Authentication required' } }),
+    'GET /api/platform/me': () => ({ status: 401, body: { error: 'Platform authentication required' } }),
+    'POST /api/dev/demo-login': () => ({ status: 404, body: { error: 'Not found' } }),
+    'POST /api/platform/dev/demo-login': () => ({ status: 404, body: { error: 'Not found' } }),
+    'GET /api/auth/bootstrap': () => ({
+      status: 200,
+      body: {
+        mode: 'oidc',
+        enabled: true,
+        login_required: true,
+        demo_login_enabled: false,
+        login_url: '/auth/login',
+        start_url: '/auth/oidc/start',
+        callback_url: '/auth/oidc/callback'
+      }
+    }),
+    'GET /api/platform/auth/bootstrap': () => ({
+      status: 200,
+      body: {
+        mode: 'oidc',
+        enabled: true,
+        login_required: true,
+        demo_login_enabled: false,
+        login_url: '/platform/login',
+        start_url: '/platform/auth/oidc/start',
+        callback_url: '/platform/auth/oidc/callback'
+      }
+    })
+  });
+  try {
+    const baseUrl = `http://127.0.0.1:${server.address().port}`;
+    const result = await runNodeScript('scripts/go-live-check.mjs', goLiveEnv(baseUrl));
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /go-live-check/i);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('go-live-check fails if bootstrap responses expose secret-like fields', async () => {
+  const server = await createMockServer({
+    'GET /healthz': () => ({ status: 200, body: { ok: true } }),
+    'GET /healthz/ready': () => ({ status: 200, body: { ok: true, checks: { db: 'ok', storage: 'ok', auth: 'ok', integration: 'ok', queue: 'ok' } } }),
+    'GET /api/me': () => ({ status: 401, body: { error: 'Authentication required' } }),
+    'GET /api/platform/me': () => ({ status: 401, body: { error: 'Platform authentication required' } }),
+    'POST /api/dev/demo-login': () => ({ status: 404, body: { error: 'Not found' } }),
+    'POST /api/platform/dev/demo-login': () => ({ status: 404, body: { error: 'Not found' } }),
+    'GET /api/auth/bootstrap': () => ({
+      status: 200,
+      body: {
+        mode: 'oidc',
+        enabled: true,
+        demo_login_enabled: false,
+        clientSecret: 'should-not-leak'
+      }
+    }),
+    'GET /api/platform/auth/bootstrap': () => ({
+      status: 200,
+      body: {
+        mode: 'oidc',
+        enabled: true,
+        demo_login_enabled: false
+      }
+    })
+  });
+  try {
+    let failed = false;
+    try {
+      const result = await runNodeScript('scripts/go-live-check.mjs', goLiveEnv(`http://127.0.0.1:${server.address().port}`));
+      if (result.code !== 0) {
+        throw new Error(result.stderr || result.stdout || `exit ${result.code}`);
+      }
+    } catch (error) {
+      failed = true;
+      assert.match(String(error.stderr || error.stdout || error.message), /Secret-like field exposed/);
+    }
+    assert.equal(failed, true);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('verify-backup-restore passes with authenticated mocked posture', async () => {
+  const server = await createMockServer({
+    'GET /api/compliance/availability-posture': () => ({
+      status: 200,
+      body: {
+        posture: {
+          backup: { status: 'CONFIGURED' },
+          restore: { status: 'VERIFIED' }
+        }
+      }
+    }),
+    'GET /api/compliance/backup-records': () => ({
+      status: 200,
+      body: { records: [{ id: 'backup-1', status: 'VERIFIED' }] }
+    }),
+    'GET /api/compliance/restore-tests': () => ({
+      status: 200,
+      body: { tests: [{ id: 'restore-1', status: 'VERIFIED' }] }
+    })
+  });
+  try {
+    const result = await runNodeScript('scripts/verify-backup-restore.mjs', {
+      ...process.env,
+      RUNTIME_BASE_URL: `http://127.0.0.1:${server.address().port}`,
+      GO_LIVE_COOKIE: 'opstrax_session=demo'
+    });
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /verify-backup-restore/i);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('go-live documentation and scorecard exist', () => {
+  const docs = [
+    ['docs/go-live-runbook.md', /Go-Live Runbook/i],
+    ['docs/observability-alerting.md', /Observability and Alerting Readiness/i],
+    ['docs/backup-restore.md', /Backup and Restore Readiness/i],
+    ['docs/go-live-scorecard.md', /Go-Live Scorecard/i],
+    ['docs/releases/phase-3f-go-live-ops.md', /Phase 3F/i]
+  ];
+  for (const [filePath, pattern] of docs) {
+    const content = readFileSync(filePath, 'utf8');
+    assert.match(content, pattern, `${filePath} must contain the expected heading`);
   }
 });

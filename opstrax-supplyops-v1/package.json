@@ -14,7 +14,9 @@
     "seed:production-runtime": "OPSTRAX_VALIDATE_SEED=1 node scripts/seed-production-runtime.mjs",
     "verify:postgres": "node scripts/verify-postgres.mjs",
     "verify:storage": "node scripts/verify-storage.mjs",
+    "verify:backup-restore": "node scripts/verify-backup-restore.mjs",
     "verify:production-runtime": "node scripts/verify-production-runtime.mjs",
+    "go-live-check": "node scripts/go-live-check.mjs",
     "perf-smoke": "OPSTRAX_ALLOW_DEV_CONTEXT=1 node scripts/perf-smoke.mjs",
     "browser-smoke": "OPSTRAX_ALLOW_DEV_CONTEXT=1 node scripts/browser-smoke.mjs"
   },
