@@ -4,12 +4,24 @@ import { readFileSync, existsSync, statSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { runStartupChecks } from './src/startup.js';
-import { authEnabled, completeLogin, createDemoSession, getAuthBootstrap, getLoginUrl, isDemoLoginEnabled, logoutSession, requireCsrf } from './src/auth.js';
+import {
+  authEnabled,
+  completeLogin,
+  completePlatformLogin,
+  createDemoSession,
+  getAuthBootstrap,
+  getLoginUrl,
+  getPlatformLoginUrl,
+  isDemoLoginEnabled,
+  logoutSession,
+  requireCsrf
+} from './src/auth.js';
 import { auditDenied, getAdminSnapshot, getAuditSummary, getEntityAudit, getMe, getReceiveSessionDetail, getReceivingSummary, getEvidenceDetail, downloadEvidenceContent, linkEvidence, verifyEvidence, archiveEvidence, listEvidenceLinks, listAuditLogs, listBootstrap, listCompliance, listDepartments, listDevices, listDocuments, listExports, listExportSummary, listExportCandidates, listExportBatches, getExportBatchDetail, listExportBatchErrors, validateExportBatch, approveExportBatch, generateExportBatch, dispatchExportBatch, cancelExportBatch, listFacilities, listFeatureFlags, listInternalRequests, listItems, listItemCategories, listInventorySummary, listInventoryBalances, listStockMovements, listStockAdjustments, listInventoryBins, getItemDetail, getInventoryAdjustmentDetail, createItem, updateItem, createStockAdjustment, listLabelJobs, listPermissions, listPurchaseRequests, listPurchaseOrders, listReceivingMovements, listReceivingPurchaseOrders, listReceivingSessions, listVendors, getProcurementSummary, getVendorDetail, createVendor, updateVendor, getPurchaseDetail, getPurchaseOrderDetail, createPurchaseRequest, updatePurchaseRequest, submitPurchaseRequest, approvePurchaseRequest, rejectPurchaseRequest, cancelPurchaseRequest, listPurchaseRequestLines, createPurchaseRequestLine, updatePurchaseRequestLine, deletePurchaseRequestLine, createPurchaseOrderFromPurchaseRequest, updatePurchaseOrder, approvePurchaseOrder, issuePurchaseOrder, cancelPurchaseOrder, listSupplierContracts, getSupplierContractDetail, createSupplierContract, updateSupplierContract, listDepartmentBudgets, getDepartmentBudgetDetail, updateDepartmentBudget, listProcurementWaivers, createProcurementWaiver, getProcurementAdvisory, getProcureToPaySummary, listVendorInvoices, listVendorInvoiceLines, listVendorInvoiceExceptions, getVendorInvoiceExceptionDetail, getVendorInvoiceDetail, createVendorInvoice, createVendorInvoiceLine, updateVendorInvoice, updateVendorInvoiceLine, deleteVendorInvoiceLine, uploadVendorInvoice, extractVendorInvoice, matchVendorInvoice, waiveInvoiceException, approveVendorInvoice, rejectVendorInvoice, cancelVendorInvoice, markVendorInvoiceExportReady, exportVendorInvoice, listRfqRequests, getRfqRequestDetail, createRfqRequest, updateRfqRequest, sendRfqRequest, evaluateRfqRequest, awardRfqRequest, cancelRfqRequest, listRfqLines, createRfqLine, updateRfqLine, deleteRfqLine, listVendorQuotes, getVendorQuoteDetail, createVendorQuote, updateVendorQuote, submitVendorQuote, shortlistVendorQuote, awardVendorQuote, rejectVendorQuote, expireVendorQuote, listVendorScorecards, createReceiveSessionFromPurchaseOrder, startReceiveSession, recordReceiveLine, recordReceiveException, postReceiveSession, cancelReceiveSession, listRoles, listSyncBatches, listSyncConflicts, listUsers, resolveContext, createInternalRequest, submitInternalRequest, cancelInternalRequest, approveInternalRequest, rejectInternalRequest, issueInternalRequest, reviewSyncBatch, createLabelJob, createExportBatch, validateFinanceExport, generateFinanceExport as generateFinanceExportAction, uploadDocument, resolveSyncConflict, dispatchExport, getRequestDetail, listAvailableRequestItems, updateInternalRequest, listRequestLines, createRequestLine, updateRequestLine, deleteRequestLine, listWarehouseSummary, listWarehouseTasks, listIssueReadyRequests, listWarehouseBins, getWarehouseTaskDetail, createWarehouseTaskFromRequest, startWarehouseTask, pickWarehouseTaskLine, issueWarehouseTaskLine, closeWarehouseTask, cancelWarehouseTask, listIntegrationSummary, listIntegrationConnections, createIntegrationConnection, listIntegrationJobs, getIntegrationConnectionDetail, getIntegrationJobDetail, retryIntegrationJob, cancelIntegrationJob, listDeviceOpsSummary, createDevice, getDeviceDetail, updateDevice, trustDevice, suspendDevice, revokeDevice, listDeviceEvents, recordScanEvent, validateScan, listOfflineSummary, createOfflineBatch, listOfflineBatches, getOfflineBatchDetail, uploadOfflineBatch, validateOfflineBatch, replayOfflineBatch, approveOfflineBatch, rejectOfflineBatch, listSyncConflictsNew, getSyncConflictDetail, approveSyncConflict, rejectSyncConflict, listOfflineTasks, getOfflineTaskDetail , listAiSummary, listAiAgents, listAiRecommendations, generateAiRecommendations, getAiRecommendationDetail, dismissAiRecommendation, approveAiRecommendationPlaceholder, listAiRuns, getAiRunDetail, queryOpsCopilot, listComplianceControls, updateComplianceControl, listComplianceEvidence, listAccessReviews, createAccessReview, reviewAccessEntry, listRiskRegister, createRiskEntry, updateRiskEntry, listIncidentRegister, createIncident, updateIncident, listVendorIntegrationRegister, listAiGovernanceLogs, getSecurityPosture, getAvailabilityPosture, listSsoConfigurations, listBackupRecords, listRestoreTests } from './src/services.js';
 import { getPlatformAuthBootstrap, createPlatformDemoSession as createPlatformSession, endPlatformWorkspaceSession, resolvePlatformContext, getPlatformMe, getPlatformSummary, listPlatformTenants, getPlatformTenantDetail, getPlatformTenantUsers, getPlatformTenantModules, getPlatformTenantUsage, getPlatformTenantHealth, listPlatformAuditEvents, listPlatformSecurityEvents, listPlatformBillingEvents, listPlatformSupportSessions, createPlatformSupportSession, updatePlatformTenantSubscription, updatePlatformTenantPlan, updatePlatformTenantEntitlements, endPlatformSupportSession, suspendPlatformTenant, reactivatePlatformTenant, auditPlatformDenied } from './src/platform.js';
 import { getDatabaseRuntimeInfo, selectOne as dbSelectOne } from './src/db.js';
 import { probeEvidenceStorage } from './src/evidence-storage.js';
 import { parseJsonBody } from './src/validation.js';
+import { getPlatformOidcRuntimeSelection, getSessionRuntimeSelection, getTenantOidcRuntimeSelection } from './src/runtime-config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = resolve(__filename, '..');
@@ -314,13 +326,14 @@ function route(req, res) {
   res.setHeader('X-Request-Id', requestId);
   let context;
   try {
-    if (req.method === 'GET' && url.pathname === '/auth/login') {
-      if (!authEnabled()) return sendRedirect(res, '/');
+    if (req.method === 'GET' && (url.pathname === '/auth/login' || url.pathname === '/auth/oidc/start')) {
+      if (url.pathname === '/auth/login' && !authEnabled()) return sendRedirect(res, '/');
+      if (url.pathname === '/auth/oidc/start' && !authEnabled()) return sendJson(res, 503, { error: 'OIDC is not configured', requestId });
       return getLoginUrl(req.headers, url.searchParams.get('returnTo') || url.searchParams.get('return_to') || '/')
         .then((loginUrl) => sendRedirect(res, loginUrl))
         .catch((error) => sendJson(res, error.status ?? 500, { error: error.message ?? 'Unexpected error' }));
     }
-    if (req.method === 'GET' && url.pathname === '/auth/callback') {
+    if (req.method === 'GET' && (url.pathname === '/auth/callback' || url.pathname === '/auth/oidc/callback')) {
       return completeLogin(req.headers, Object.fromEntries(url.searchParams.entries()))
         .then(({ cookie, returnTo }) => sendRedirect(res, returnTo || '/', { 'Set-Cookie': cookie }))
         .catch((error) => sendJson(res, error.status ?? 500, { error: error.message ?? 'Unexpected error' }));
@@ -334,6 +347,18 @@ function route(req, res) {
     }
     if (req.method === 'GET' && url.pathname === '/api/platform/auth/bootstrap') {
       return sendJson(res, 200, getPlatformAuthBootstrap());
+    }
+    if (req.method === 'GET' && (url.pathname === '/platform/login' || url.pathname === '/platform/auth/oidc/start')) {
+      if (url.pathname === '/platform/login' && !getPlatformAuthBootstrap().enabled) return sendRedirect(res, '/platform');
+      if (url.pathname === '/platform/auth/oidc/start' && !getPlatformAuthBootstrap().enabled) return sendJson(res, 503, { error: 'OIDC is not configured', requestId });
+      return getPlatformLoginUrl(req.headers, url.searchParams.get('returnTo') || url.searchParams.get('return_to') || '/platform/dashboard')
+        .then((loginUrl) => sendRedirect(res, loginUrl))
+        .catch((error) => sendJson(res, error.status ?? 500, { error: error.message ?? 'Unexpected error' }));
+    }
+    if (req.method === 'GET' && (url.pathname === '/platform/callback' || url.pathname === '/platform/auth/oidc/callback')) {
+      return completePlatformLogin(req.headers, Object.fromEntries(url.searchParams.entries()))
+        .then(({ cookie, returnTo }) => sendRedirect(res, returnTo || '/platform/dashboard', { 'Set-Cookie': cookie }))
+        .catch((error) => sendJson(res, error.status ?? 500, { error: error.message ?? 'Unexpected error' }));
     }
     if (req.method === 'POST' && url.pathname === '/api/dev/demo-login') {
       if (!isDemoLoginEnabled()) {
@@ -410,6 +435,7 @@ function route(req, res) {
       let storageOk = false;
       let storageError = null;
       let authOk = false;
+      let authError = null;
       let integrationOk = false;
       let queueOk = false;
       try {
@@ -417,8 +443,8 @@ function route(req, res) {
         const row = dbSelectOne('SELECT COALESCE(MAX(version),0) AS version FROM schema_migrations');
         const currentVersion = Number(row?.version ?? dbInfo.currentVersion ?? 0);
         dbOk = process.env.NODE_ENV === 'production'
-          ? dbInfo.provider === 'postgres' && currentVersion >= 21
-          : (dbInfo.provider === 'postgres' ? currentVersion >= 21 : currentVersion > 0);
+          ? dbInfo.provider === 'postgres' && currentVersion >= 23
+          : (dbInfo.provider === 'postgres' ? currentVersion >= 23 : currentVersion > 0);
         try {
           const storageProbe = probeEvidenceStorage();
           storageOk = Boolean(storageProbe?.reachable);
@@ -426,7 +452,14 @@ function route(req, res) {
           storageError = e.message;
           storageOk = false;
         }
-        authOk = Boolean(process.env.OPSTRAX_OIDC_ISSUER) || process.env.NODE_ENV !== 'production';
+        const tenantAuth = getTenantOidcRuntimeSelection(process.env);
+        const platformAuth = getPlatformOidcRuntimeSelection(process.env);
+        const sessionSelection = getSessionRuntimeSelection(process.env);
+        const authConfigured = Boolean(tenantAuth.issuer && tenantAuth.clientId && tenantAuth.clientSecret && tenantAuth.redirectUri && platformAuth.issuer && platformAuth.clientId && platformAuth.clientSecret && platformAuth.redirectUri && sessionSelection.tenantSecret && sessionSelection.platformSecret);
+        authOk = process.env.NODE_ENV !== 'production' ? true : authConfigured;
+        if (process.env.NODE_ENV === 'production' && !authConfigured) {
+          authError = 'tenant/platform OIDC or session configuration missing';
+        }
         integrationOk = process.env.NODE_ENV !== 'production'
           ? true
           : (dbSelectOne("SELECT COUNT(*) AS count FROM integration_connections WHERE status = 'CONFIGURED'")?.count || 0) > 0;
@@ -441,7 +474,7 @@ function route(req, res) {
         checks: {
           db: dbOk ? 'ok' : `error: ${dbError ?? 'no migrations applied'}`,
           storage: storageOk ? 'ok' : `error: ${storageError ?? 'storage configuration required'}`,
-          auth: authOk ? 'ok' : 'error: auth configuration required',
+          auth: authOk ? 'ok' : `error: ${authError ?? 'auth configuration required'}`,
           integration: integrationOk ? 'ok' : 'error: integration posture unavailable',
           queue: queueOk ? 'ok' : 'error: failed integration jobs exceed threshold'
         }

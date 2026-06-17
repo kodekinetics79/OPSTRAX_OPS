@@ -4,8 +4,20 @@
  * In development mode, warnings are printed but startup continues.
  */
 
-function env(name) {
-  return (process.env[name] || '').trim();
+import {
+  getDatabaseRuntimeSelection,
+  getEvidenceStorageRuntimeSelection,
+  getPlatformOidcRuntimeSelection,
+  getSessionRuntimeSelection,
+  getTenantOidcRuntimeSelection
+} from './runtime-config.js';
+
+function env(...names) {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value !== undefined && String(value).trim()) return String(value).trim();
+  }
+  return '';
 }
 
 function warn(msg) {
@@ -19,53 +31,52 @@ function fatal(msg) {
 
 export function runStartupChecks() {
   const isProduction = env('NODE_ENV') === 'production';
-  const authMode = env('OPSTRAX_AUTH_MODE');
-  const oidcIssuer = env('OPSTRAX_OIDC_ISSUER');
-  const allowDev = env('OPSTRAX_ALLOW_DEV_CONTEXT');
-  const oidcClientId = env('OPSTRAX_OIDC_CLIENT_ID');
-  const oidcClientSecret = env('OPSTRAX_OIDC_CLIENT_SECRET');
-  const oidcRedirectUri = env('OPSTRAX_OIDC_REDIRECT_URI');
+  const authMode = env('AUTH_MODE', 'OPSTRAX_AUTH_MODE');
+  const allowDev = env('ALLOW_DEV_CONTEXT', 'OPSTRAX_ALLOW_DEV_CONTEXT');
   const dbSelection = getDatabaseRuntimeSelection(process.env);
   const storageSelection = getEvidenceStorageRuntimeSelection(process.env);
+  const tenantAuthSelection = getTenantOidcRuntimeSelection(process.env);
+  const platformAuthSelection = getPlatformOidcRuntimeSelection(process.env);
+  const sessionSelection = getSessionRuntimeSelection(process.env);
 
   // Determine effective auth mode (mirrors logic in auth.js)
   const effectiveMode =
-    authMode || (oidcIssuer ? 'oidc' : allowDev === '1' ? 'dev' : 'locked');
+    authMode || (tenantAuthSelection.issuer ? 'oidc' : allowDev === '1' ? 'dev' : 'locked');
 
   if (isProduction) {
+    if (authMode === 'dev') {
+      fatal('AUTH_MODE=dev is not permitted in production.');
+    }
     if (dbSelection.provider === 'sqlite') {
-      fatal('SQLite is not permitted in production. Set OPSTRAX_DB_PROVIDER=postgres and DATABASE_URL.');
+      fatal('SQLite is not permitted in production. Set DATABASE_PROVIDER=postgres and DATABASE_URL.');
     }
     if (!dbSelection.databaseUrl) {
       fatal('DATABASE_URL is required in production for the PostgreSQL runtime.');
     }
-    // Dev context is never acceptable in production
     if (allowDev === '1') {
-      fatal('OPSTRAX_ALLOW_DEV_CONTEXT=1 is not allowed when NODE_ENV=production. Remove it or set NODE_ENV=development.');
+      fatal('ALLOW_DEV_CONTEXT=1 is not allowed when NODE_ENV=production. Remove it or set NODE_ENV=development.');
     }
-    if (effectiveMode === 'dev') {
-      fatal('Auth mode resolved to "dev" in NODE_ENV=production. Set OPSTRAX_AUTH_MODE=oidc or provide OPSTRAX_OIDC_ISSUER.');
-    }
-
-    // In production with OIDC, all required OIDC vars must be present
-    if (effectiveMode === 'oidc') {
-      if (!oidcIssuer) fatal('OPSTRAX_OIDC_ISSUER is required when auth mode is oidc.');
-      if (!oidcClientId) fatal('OPSTRAX_OIDC_CLIENT_ID is required when auth mode is oidc.');
-      if (!oidcClientSecret) fatal('OPSTRAX_OIDC_CLIENT_SECRET is required when auth mode is oidc.');
-      if (!oidcRedirectUri) fatal('OPSTRAX_OIDC_REDIRECT_URI is required when auth mode is oidc.');
+    if (!tenantAuthSelection.issuer) fatal('OIDC_ISSUER is required in production for tenant SSO.');
+    if (!tenantAuthSelection.clientId) fatal('OIDC_CLIENT_ID is required in production for tenant SSO.');
+    if (!tenantAuthSelection.clientSecret) fatal('OIDC_CLIENT_SECRET is required in production for tenant SSO.');
+    if (!tenantAuthSelection.redirectUri) fatal('OIDC_REDIRECT_URI is required in production for tenant SSO.');
+    if (!platformAuthSelection.issuer) fatal('PLATFORM_OIDC_ISSUER is required in production for platform SSO.');
+    if (!platformAuthSelection.clientId) fatal('PLATFORM_OIDC_CLIENT_ID is required in production for platform SSO.');
+    if (!platformAuthSelection.clientSecret) fatal('PLATFORM_OIDC_CLIENT_SECRET is required in production for platform SSO.');
+    if (!platformAuthSelection.redirectUri) fatal('PLATFORM_OIDC_REDIRECT_URI is required in production for platform SSO.');
+    if (!sessionSelection.tenantSecret) fatal('SESSION_SECRET is required in production.');
+    if (!sessionSelection.platformSecret) fatal('PLATFORM_SESSION_SECRET is required in production.');
+    if (sessionSelection.cookieSecure === 'false') fatal('COOKIE_SECURE cannot be false in production.');
+    if (sessionSelection.cookieSameSite === 'none' && sessionSelection.cookieSecure !== 'true') {
+      fatal('COOKIE_SAME_SITE=none requires COOKIE_SECURE=true in production.');
     }
 
     if (storageSelection.mode !== 'filesystem') {
-      if (storageSelection.mode !== 's3') fatal('OPSTRAX_EVIDENCE_STORAGE must be set to s3 or filesystem.');
-      if (!storageSelection.bucket || !storageSelection.region) fatal('OPSTRAX_EVIDENCE_BUCKET and OPSTRAX_EVIDENCE_REGION are required when evidence storage is s3.');
-      if (!storageSelection.signingSecret) fatal('OPSTRAX_EVIDENCE_SIGNING_SECRET is required in production.');
+      if (storageSelection.mode !== 's3') fatal('EVIDENCE_STORAGE_PROVIDER must be set to s3 or filesystem.');
+      if (!storageSelection.bucket || !storageSelection.region) fatal('S3_BUCKET and S3_REGION are required when evidence storage is s3.');
+      if (!storageSelection.signingSecret) fatal('EVIDENCE_SIGNING_SECRET is required in production.');
     } else {
       fatal('Filesystem evidence storage is not permitted in production. Configure S3-compatible object storage.');
-    }
-
-    // Locked mode in production is acceptable (read-only public demo), but warn
-    if (effectiveMode === 'locked') {
-      warn('Auth mode is "locked" in production — all requests will use the dev-context fallback is disabled. Ensure this is intentional for your deployment.');
     }
   } else {
     // Development warnings
@@ -75,22 +86,31 @@ export function runStartupChecks() {
     if (effectiveMode === 'dev') {
       warn('Auth mode is "dev" — user identity is resolved from request headers. Do not use in production.');
     }
-    if (effectiveMode === 'oidc' && (!oidcClientId || !oidcClientSecret)) {
-      warn('OIDC mode detected but OPSTRAX_OIDC_CLIENT_ID / OPSTRAX_OIDC_CLIENT_SECRET are not set. Auth flows will fail.');
+    if (tenantAuthSelection.issuer && (!tenantAuthSelection.clientId || !tenantAuthSelection.clientSecret)) {
+      warn('Tenant OIDC is partially configured. Auth flows will fail until client id/secret are set.');
+    }
+    if (platformAuthSelection.issuer && (!platformAuthSelection.clientId || !platformAuthSelection.clientSecret)) {
+      warn('Platform OIDC is partially configured. Auth flows will fail until platform client id/secret are set.');
     }
   }
 
   // Always: warn if OIDC vars are partially configured (easy misconfiguration)
-  if (oidcIssuer && !oidcClientId) {
-    const msg = 'OPSTRAX_OIDC_ISSUER is set but OPSTRAX_OIDC_CLIENT_ID is missing.';
+  if (tenantAuthSelection.issuer && !tenantAuthSelection.clientId) {
+    const msg = 'OIDC_ISSUER is set but OIDC_CLIENT_ID is missing.';
     if (isProduction) fatal(msg); else warn(msg);
   }
-  if (oidcClientId && !oidcIssuer) {
-    warn('OPSTRAX_OIDC_CLIENT_ID is set but OPSTRAX_OIDC_ISSUER is missing — OIDC will not be activated.');
+  if (tenantAuthSelection.clientId && !tenantAuthSelection.issuer) {
+    warn('OIDC_CLIENT_ID is set but OIDC_ISSUER is missing — tenant OIDC will not be activated.');
+  }
+  if (platformAuthSelection.issuer && !platformAuthSelection.clientId) {
+    const msg = 'PLATFORM_OIDC_ISSUER is set but PLATFORM_OIDC_CLIENT_ID is missing.';
+    if (isProduction) fatal(msg); else warn(msg);
+  }
+  if (platformAuthSelection.clientId && !platformAuthSelection.issuer) {
+    warn('PLATFORM_OIDC_CLIENT_ID is set but PLATFORM_OIDC_ISSUER is missing — platform OIDC will not be activated.');
   }
 
   if (!isProduction) {
     process.stderr.write(`[startup] INFO  auth mode = ${effectiveMode}, NODE_ENV = ${process.env.NODE_ENV || 'unset'}\n`);
   }
 }
-import { getDatabaseRuntimeSelection, getEvidenceStorageRuntimeSelection } from './runtime-config.js';

@@ -4116,6 +4116,7 @@ function moduleSignals(items) {
 
 function tenantAuthPage() {
   const demoEnabled = Boolean(state.authBootstrap?.demo_login_enabled);
+  const ssoEnabled = Boolean(state.authBootstrap?.enabled);
   return `
     <section class="auth-shell">
       <div class="auth-card panel">
@@ -4147,9 +4148,10 @@ function tenantAuthPage() {
             <p>Use your organization identity provider to access the tenant-scoped operations workspace.</p>
             ${state.error ? `<p class="muted auth-error">${h(state.error)}</p>` : ''}
             <div class="auth-actions">
-              <a class="primary auth-button" href="${h(state.loginUrl || '/auth/login')}">Continue with SSO</a>
+              ${ssoEnabled ? `<a class="primary auth-button" href="${h(state.authBootstrap?.start_url || state.loginUrl || '/auth/login')}">Continue with SSO</a>` : `<button class="primary auth-button" type="button" disabled>Continue with SSO</button>`}
               ${demoEnabled ? `<button class="ghost auth-button" data-action="demo-login" type="button">Enter Demo Workspace</button>` : ''}
             </div>
+            ${ssoEnabled ? '' : `<p class="muted" style="margin-top:10px">SSO configuration required for this workspace.</p>`}
             ${demoEnabled ? `<p class="muted" style="margin-top:10px">Local demo mode only. Click Enter Demo Workspace to open the seeded IntelliFlow admin workspace.</p>` : ''}
           </div>
           <div class="auth-side">
@@ -4165,6 +4167,7 @@ function tenantAuthPage() {
 
 function platformAuthPage() {
   const demoEnabled = Boolean(state.platformAuthBootstrap?.demo_login_enabled);
+  const ssoEnabled = Boolean(state.platformAuthBootstrap?.enabled);
   return `
     <section class="auth-shell">
       <div class="auth-card panel">
@@ -4196,10 +4199,11 @@ function platformAuthPage() {
             <p>Use the platform control plane to manage tenants, plans, support sessions, and system posture.</p>
             ${state.error ? `<p class="muted auth-error">${h(state.error)}</p>` : ''}
             <div class="auth-actions">
-              ${demoEnabled ? `<button class="primary auth-button" data-action="platform-demo-login" type="button">Enter Platform Workspace</button>` : ''}
-              <a class="ghost auth-button" href="/platform/dashboard">Open Platform Dashboard</a>
+              ${ssoEnabled ? `<a class="primary auth-button" href="${h(state.platformAuthBootstrap?.start_url || state.loginUrl || '/platform/login')}">Continue with Platform SSO</a>` : `<button class="primary auth-button" type="button" disabled>Continue with Platform SSO</button>`}
+              ${demoEnabled ? `<button class="ghost auth-button" data-action="platform-demo-login" type="button">Enter Platform Workspace</button>` : ''}
             </div>
-            ${demoEnabled ? `<p class="muted" style="margin-top:10px">Local demo mode only. Use the seeded platform owner workspace for the control plane.</p>` : `<p class="muted" style="margin-top:10px">Platform demo login is disabled. Configure platform SSO before exposing this surface in production.</p>`}
+            ${ssoEnabled ? '' : `<p class="muted" style="margin-top:10px">Platform SSO configuration required before production access.</p>`}
+            ${demoEnabled ? `<p class="muted" style="margin-top:10px">Local demo mode only. Use the seeded platform owner workspace for the control plane.</p>` : ''}
           </div>
           <div class="auth-side">
             <div class="auth-metric"><span>Platform isolation</span><strong>Separate session</strong></div>

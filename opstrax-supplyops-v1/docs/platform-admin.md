@@ -90,6 +90,20 @@ Demo identity:
 - session: separate platform cookie
 - result: `/api/platform/me` returns the platform owner identity and capabilities
 
+## Production configuration
+
+- `PLATFORM_BASE_URL` must match the externally reachable admin URL.
+- `PLATFORM_AUTH_MODE=oidc`
+- `PLATFORM_OIDC_ISSUER`
+- `PLATFORM_OIDC_CLIENT_ID`
+- `PLATFORM_OIDC_CLIENT_SECRET`
+- `PLATFORM_OIDC_REDIRECT_URI`
+- `PLATFORM_OIDC_LOGOUT_REDIRECT_URI`
+- `PLATFORM_SESSION_SECRET`
+- `COOKIE_SECURE=true`
+
+Production startup blocks platform access until the platform OIDC settings are complete. The local demo button is never shown in production.
+
 Seeded managed workspaces:
 
 - IntelliFlow Systems

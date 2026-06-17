@@ -3,11 +3,16 @@ import { execute, insert, newId, nowIso, selectAll, selectOne, transaction } fro
 import { asBool, asJson, requireArray, requireEnum, requirePositiveInt, requireString, optionalString, fail } from './validation.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { authMode, getAuthBootstrap, readSession } from './auth.js';
+import { authMode, getAuthBootstrap, isLocalDemoEnabled, readSession } from './auth.js';
+import {
+  getPlatformOidcRuntimeSelection,
+  getSessionRuntimeSelection,
+  getTenantOidcRuntimeSelection
+} from './runtime-config.js';
 import { evidenceStorageStatus, getEvidenceStorageInfo, readEvidenceBinary, writeEvidenceBinary } from './evidence-storage.js';
 
-const evidenceAccessTtlSeconds = () => Math.max(60, Number(process.env.OPSTRAX_EVIDENCE_SIGNED_URL_TTL || 900) || 900);
-const evidenceSigningSecret = () => process.env.OPSTRAX_EVIDENCE_SIGNING_SECRET || 'opstrax-local-evidence-signing-secret';
+const evidenceAccessTtlSeconds = () => Math.max(60, Number(process.env.EVIDENCE_SIGNED_URL_TTL || process.env.OPSTRAX_EVIDENCE_SIGNED_URL_TTL || 900) || 900);
+const evidenceSigningSecret = () => process.env.EVIDENCE_SIGNING_SECRET || process.env.OPSTRAX_EVIDENCE_SIGNING_SECRET || 'opstrax-local-evidence-signing-secret';
 
 const roleCapabilities = {
   admin: ['view_dashboard', 'view_inventory', 'manage_inventory', 'manage_items', 'adjust_stock', 'view_stock_movements', 'view_restricted_items', 'manage_restricted_items', 'view_requests', 'create_request', 'submit_request', 'cancel_request', 'approve_request', 'reject_request', 'issue_request', 'view_warehouse_tasks', 'manage_warehouse_tasks', 'execute_warehouse_tasks', 'view_purchasing', 'view_purchase_orders', 'view_vendors', 'create_purchase_request', 'update_purchase_request', 'submit_purchase_request', 'approve_purchase_request', 'reject_purchase_request', 'cancel_purchase_request', 'create_purchase_order', 'update_purchase_order', 'approve_purchase_order', 'issue_purchase_order', 'cancel_purchase_order', 'manage_vendors', 'review_sync', 'manage_labels', 'manage_exports', 'view_audit', 'manage_admin'],
@@ -8195,8 +8200,11 @@ export function listVendorIntegrationRegister(context) {
     [context.tenant.id]
   );
   const storage = evidenceStorageStatus();
+  const tenantAuth = getTenantOidcRuntimeSelection(process.env);
+  const platformAuth = getPlatformOidcRuntimeSelection(process.env);
   const staticVendors = [
-    { vendor_key: 'oidc_provider', name: 'OIDC / SSO Provider', type: 'AUTHENTICATION', status: process.env.OPSTRAX_OIDC_ISSUER ? 'CONFIGURED' : 'CONFIGURATION_REQUIRED', data_handled: 'User identities, session tokens', risk_level: 'HIGH', notes: process.env.OPSTRAX_OIDC_ISSUER ? `Issuer: ${process.env.OPSTRAX_OIDC_ISSUER}` : 'No OIDC issuer configured. Dev-context only.' },
+    { vendor_key: 'oidc_provider', name: 'OIDC / SSO Provider', type: 'AUTHENTICATION', status: tenantAuth.issuer ? 'CONFIGURED' : 'CONFIGURATION_REQUIRED', data_handled: 'User identities, session tokens', risk_level: 'HIGH', notes: tenantAuth.issuer ? `Issuer: ${tenantAuth.issuer}` : 'No OIDC issuer configured. Dev-context only.' },
+    { vendor_key: 'platform_oidc_provider', name: 'Platform OIDC / SSO Provider', type: 'AUTHENTICATION', status: platformAuth.issuer ? 'CONFIGURED' : 'CONFIGURATION_REQUIRED', data_handled: 'Platform admin identities, support sessions', risk_level: 'HIGH', notes: platformAuth.issuer ? `Issuer: ${platformAuth.issuer}` : 'No platform OIDC issuer configured.' },
     { vendor_key: 'object_storage', name: 'Object Storage (S3)', type: 'STORAGE', status: storage.status, data_handled: 'Evidence documents, uploaded files', risk_level: 'MEDIUM', notes: storage.status === 'CONFIGURED' ? 'S3 backend configured.' : storage.status === 'LOCAL_ONLY' ? 'Using local filesystem. S3 required for production.' : 'Object storage is not configured.' },
     { vendor_key: 'ai_provider', name: 'AI/LLM Provider', type: 'AI_ADVISORY', status: 'NOT_CONFIGURED', data_handled: 'Operational context (read-only, no PII)', risk_level: 'MEDIUM', notes: 'No LLM provider configured. All AI is SYSTEM_GENERATED deterministic rules.' },
     { vendor_key: 'ocr_provider', name: 'OCR / Invoice Extraction Provider', type: 'DOCUMENT_PROCESSING', status: 'NOT_CONFIGURED', data_handled: 'Invoice documents, line-item data', risk_level: 'MEDIUM', notes: 'OCR provider not configured. Invoice extraction uses deterministic parsing only.' },
@@ -8275,12 +8283,18 @@ export function listAiGovernanceLogs(context) {
 export function getSecurityPosture(context) {
   requireFeature(context, 'compliance_center');
   requireCapability(context, 'view_compliance');
-  const authMode = process.env.OPSTRAX_AUTH_MODE || (process.env.OPSTRAX_OIDC_ISSUER ? 'oidc' : process.env.OPSTRAX_ALLOW_DEV_CONTEXT === '1' ? 'dev' : 'locked');
+  const currentAuthMode = authMode();
   const isProduction = process.env.NODE_ENV === 'production';
-  const mfaStatus = authMode === 'oidc' ? 'PROVIDER_DEPENDENT' : 'NOT_CONFIGURED';
+  const tenantAuth = getTenantOidcRuntimeSelection(process.env);
+  const platformAuth = getPlatformOidcRuntimeSelection(process.env);
+  const sessionSelection = getSessionRuntimeSelection(process.env);
+  const tenantOidcEnabled = Boolean(tenantAuth.issuer && tenantAuth.clientId && tenantAuth.clientSecret);
+  const platformOidcEnabled = Boolean(platformAuth.issuer && platformAuth.clientId && platformAuth.clientSecret);
+  const mfaStatus = currentAuthMode === 'oidc' || tenantOidcEnabled || platformOidcEnabled ? 'PROVIDER_DEPENDENT' : 'NOT_CONFIGURED';
   const ssoConfig = selectOne('SELECT * FROM sso_configurations WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1', [context.tenant.id]);
-  const ssoStatus = ssoConfig?.status || (process.env.OPSTRAX_OIDC_ISSUER ? 'CONFIGURED' : 'CONFIGURATION_REQUIRED');
-  const devContextBlocked = isProduction && process.env.OPSTRAX_ALLOW_DEV_CONTEXT !== '1';
+  const tenantSsoStatus = ssoConfig?.status || (tenantOidcEnabled ? 'CONFIGURED' : 'CONFIGURATION_REQUIRED');
+  const platformSsoStatus = platformOidcEnabled ? 'CONFIGURED' : 'CONFIGURATION_REQUIRED';
+  const devContextBlocked = isProduction;
   const storage = evidenceStorageStatus();
   const recentFailedLogins = selectAll(
     `SELECT COUNT(*) AS n FROM audit_logs WHERE tenant_id = ? AND action = 'AUTH_DENIED' AND created_at > datetime('now', '-24 hours')`,
@@ -8292,10 +8306,15 @@ export function getSecurityPosture(context) {
   )[0]?.n || 0;
   return {
     posture: {
-      authMode,
+      authMode: currentAuthMode,
       environment: isProduction ? 'PRODUCTION' : 'DEVELOPMENT',
       mfa: { status: mfaStatus, note: mfaStatus === 'NOT_CONFIGURED' ? 'OIDC provider with MFA policy required for SOC2.' : 'MFA policy controlled by IdP.' },
-      sso: { status: ssoStatus, issuer: ssoConfig?.issuer || process.env.OPSTRAX_OIDC_ISSUER || null, providerType: ssoConfig?.provider_type || 'OIDC', note: ssoStatus === 'CONFIGURATION_REQUIRED' ? 'OPSTRAX_OIDC_ISSUER must be set for production deployment.' : 'OIDC configured.' },
+      sso: { status: tenantSsoStatus, issuer: ssoConfig?.issuer || tenantAuth.issuer || null, providerType: ssoConfig?.provider_type || 'OIDC', note: tenantSsoStatus === 'CONFIGURATION_REQUIRED' ? 'OIDC_ISSUER, client ID, and secret must be set for tenant production deployment.' : 'Tenant OIDC configured.' },
+      platformSso: { status: platformSsoStatus, issuer: platformAuth.issuer || null, providerType: 'OIDC', note: platformSsoStatus === 'CONFIGURATION_REQUIRED' ? 'PLATFORM_OIDC_ISSUER, client ID, and secret must be set for platform admin deployment.' : 'Platform OIDC configured.' },
+      sessionSecrets: {
+        status: sessionSelection.tenantSecret && sessionSelection.platformSecret ? 'CONFIGURED' : 'CONFIGURATION_REQUIRED',
+        note: sessionSelection.tenantSecret && sessionSelection.platformSecret ? 'Tenant and platform session signing secrets configured.' : 'Distinct tenant and platform session secrets are required.'
+      },
       objectStorage: { status: storage.status, mode: storage.mode, note: storage.status === 'CONFIGURED' ? 'Object storage backend configured.' : storage.status === 'LOCAL_ONLY' ? 'Using local filesystem. S3 required for production evidence binaries.' : 'Object storage configuration required.' },
       devContext: { blocked: devContextBlocked, note: devContextBlocked ? 'Dev context correctly blocked in production.' : 'Dev context is active — acceptable in non-production environments only.' },
       sessionTtl: { hours: 8, status: 'CONFIGURED' },
@@ -8334,8 +8353,8 @@ export function getAvailabilityPosture(context) {
       database: {
         path: dbPath,
         migrationVersion,
-        expectedVersion: 20,
-        status: migrationVersion >= 20 ? 'CURRENT' : 'MIGRATION_REQUIRED'
+        expectedVersion: 23,
+        status: migrationVersion >= 23 ? 'CURRENT' : 'MIGRATION_REQUIRED'
       },
       backup: {
         status: backupRecords.some((row) => row.status === 'VERIFIED') ? 'CONFIGURED' : 'CONFIGURATION_REQUIRED',
@@ -8387,6 +8406,36 @@ export function resolveDefaultUserForTenant(tenantId) {
 }
 
 export function resolveContext(headers, query = {}) {
+  if (isLocalDemoEnabled()) {
+    const session = readSession(headers);
+    if (session) {
+      return {
+        tenant: getTenantById(session.tenant_id),
+        user: getUserById(session.user_id),
+        device: null,
+        session
+      };
+    }
+    const tenantId = headerValue(headers, 'x-tenant-id') || query.tenant || '';
+    if (!tenantId) {
+      const error = fail('Authentication required', 401);
+      error.loginUrl = '/auth/login';
+      throw error;
+    }
+    const tenant = getTenantById(tenantId);
+    if (!tenant) throw fail('Tenant not found', 404);
+    const userId = headerValue(headers, 'x-user-id') || query.user;
+    if (!userId) {
+      const error = fail('Authentication required', 401);
+      error.loginUrl = '/auth/login';
+      throw error;
+    }
+    const user = getUserById(userId);
+    if (!user || user.tenant_id !== tenantId) throw fail('User not found for tenant', 403);
+    const deviceId = headerValue(headers, 'x-device-id') || query.device || null;
+    const device = deviceId ? selectOne('SELECT * FROM devices WHERE tenant_id = ? AND id = ?', [tenantId, deviceId]) : null;
+    return { tenant, user, device };
+  }
   const auth = authMode();
   if (auth === 'oidc') {
     const session = readSession(headers);

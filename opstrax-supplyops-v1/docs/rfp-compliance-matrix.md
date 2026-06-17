@@ -4,6 +4,7 @@
 |---|---|---|---|---|---|
 | SSO readiness | Complete | Auth / startup / shell | OIDC startup checks and auth flow hooks exist | 1 | Production OIDC/SAML still needs customer configuration |
 | Tenant isolation | Complete | All modules | `tenant_id` scoped queries and restricted tenant denial | 13 | Server enforces isolation, not only the UI |
+| Platform admin control plane isolation | Complete | `/platform`, platform APIs | Separate platform session and platform-only APIs | 15 | Platform users are not tenant-authenticated users |
 | RBAC | Complete | `/api/me`, shell, services | Role/capability gating and denied-action audit | 3, 5, 13 | Capability-based checks are server-owned |
 | Facility scoping | Complete | Shell + services | Facility-scoped users, items, tasks, and exports | 1, 4, 11 | Visible in `/api/me` scopes and backend filters |
 | Department scoping | Complete | Internal Request / Procurement | Requests and approvals are department-aware | 4, 5 | Important for controlled request routing |

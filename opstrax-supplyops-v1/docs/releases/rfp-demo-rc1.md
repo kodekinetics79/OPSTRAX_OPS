@@ -70,9 +70,9 @@ Open `http://localhost:9899` in a normal browser. The SSO gate remains visible f
 - `npm test`: passed, 169/169
 - `npm run build`: passed
 - `npm run security`: passed, 0 vulnerabilities
-- `npm run verify-migration`: passed, schema version 20 verified
+- `npm run verify-migration`: passed, schema version 22 verified
 - `npm run perf-smoke`: passed
-- `npm run browser-smoke`: passed, 49/49 checks and 20 screenshots
+- `npm run browser-smoke`: passed, 53/53 checks and 23 screenshots
 
 ### Local Demo Troubleshooting
 

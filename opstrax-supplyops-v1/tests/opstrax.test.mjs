@@ -196,7 +196,13 @@ const {
 const { selectAll, selectOne, execute, getDatabaseRuntimeInfo } = await import('../src/db.js');
 const { runStartupChecks } = await import('../src/startup.js');
 const { start, server } = await import('../server.js');
-const { getDatabaseRuntimeSelection, getEvidenceStorageRuntimeSelection } = await import('../src/runtime-config.js');
+const {
+  getDatabaseRuntimeSelection,
+  getEvidenceStorageRuntimeSelection,
+  getPlatformOidcRuntimeSelection,
+  getSessionRuntimeSelection,
+  getTenantOidcRuntimeSelection
+} = await import('../src/runtime-config.js');
 const { createSynchronousWorkerBridge } = await import('../src/sync-rpc.js');
 const {
   state: shellState,
@@ -376,7 +382,7 @@ test('migration upgrade advances an older database without losing tenant data', 
     }
   }).toString('utf8').trim();
   const payload = JSON.parse(result);
-  assert.equal(payload.version, 22);
+  assert.equal(payload.version, 23);
   assert.equal(payload.tables, 1);
 });
 
@@ -788,6 +794,9 @@ test('auth bootstrap exposes workspace entry in local workspace mode', async () 
   assert.equal(response.status, 200);
   assert.equal(payload.mode, 'dev');
   assert.equal(payload.demo_login_enabled, true);
+  assert.equal(payload.login_url, '/auth/login');
+  assert.equal(payload.start_url, '/auth/oidc/start');
+  assert.equal(payload.callback_url, '/auth/oidc/callback');
 });
 
 test('local demo login UI shows Enter Demo Workspace only in demo mode', () => {
@@ -907,6 +916,9 @@ test('platform auth bootstrap exposes separate workspace entry in local demo mod
   assert.equal(response.status, 200);
   assert.equal(payload.login_required, true);
   assert.equal(payload.demo_login_enabled, true);
+  assert.equal(payload.login_url, '/platform/login');
+  assert.equal(payload.start_url, '/platform/auth/oidc/start');
+  assert.equal(payload.callback_url, '/platform/auth/oidc/callback');
 });
 
 test('platform demo login and platform me are separate from tenant auth', async () => {
@@ -930,6 +942,37 @@ test('platform demo login and platform me are separate from tenant auth', async 
     headers: { cookie: platformCookie }
   });
   assert.equal(tenantMe.response.status, 401);
+});
+
+test('tenant and platform auth routes are disabled without OIDC configuration', async () => {
+  const savedEnv = {
+    OPSTRAX_OIDC_ISSUER: process.env.OPSTRAX_OIDC_ISSUER,
+    OPSTRAX_OIDC_CLIENT_ID: process.env.OPSTRAX_OIDC_CLIENT_ID,
+    OPSTRAX_OIDC_CLIENT_SECRET: process.env.OPSTRAX_OIDC_CLIENT_SECRET,
+    OPSTRAX_PLATFORM_OIDC_ISSUER: process.env.OPSTRAX_PLATFORM_OIDC_ISSUER,
+    OPSTRAX_PLATFORM_OIDC_CLIENT_ID: process.env.OPSTRAX_PLATFORM_OIDC_CLIENT_ID,
+    OPSTRAX_PLATFORM_OIDC_CLIENT_SECRET: process.env.OPSTRAX_PLATFORM_OIDC_CLIENT_SECRET
+  };
+  delete process.env.OPSTRAX_OIDC_ISSUER;
+  delete process.env.OPSTRAX_OIDC_CLIENT_ID;
+  delete process.env.OPSTRAX_OIDC_CLIENT_SECRET;
+  delete process.env.OPSTRAX_PLATFORM_OIDC_ISSUER;
+  delete process.env.OPSTRAX_PLATFORM_OIDC_CLIENT_ID;
+  delete process.env.OPSTRAX_PLATFORM_OIDC_CLIENT_SECRET;
+  try {
+    const tenantStart = await httpRequest('/auth/oidc/start');
+    assert.equal(tenantStart.response.status, 503);
+    const platformStart = await httpRequest('/platform/auth/oidc/start');
+    assert.equal(platformStart.response.status, 503);
+  } finally {
+    Object.assign(process.env, savedEnv);
+    if (!savedEnv.OPSTRAX_OIDC_ISSUER) delete process.env.OPSTRAX_OIDC_ISSUER;
+    if (!savedEnv.OPSTRAX_OIDC_CLIENT_ID) delete process.env.OPSTRAX_OIDC_CLIENT_ID;
+    if (!savedEnv.OPSTRAX_OIDC_CLIENT_SECRET) delete process.env.OPSTRAX_OIDC_CLIENT_SECRET;
+    if (!savedEnv.OPSTRAX_PLATFORM_OIDC_ISSUER) delete process.env.OPSTRAX_PLATFORM_OIDC_ISSUER;
+    if (!savedEnv.OPSTRAX_PLATFORM_OIDC_CLIENT_ID) delete process.env.OPSTRAX_PLATFORM_OIDC_CLIENT_ID;
+    if (!savedEnv.OPSTRAX_PLATFORM_OIDC_CLIENT_SECRET) delete process.env.OPSTRAX_PLATFORM_OIDC_CLIENT_SECRET;
+  }
 });
 
 test('tenant session cannot access platform APIs', async () => {
@@ -1100,7 +1143,7 @@ test('deep module pages render enterprise headers and no stale demo copy', () =>
       complianceAccessReviews: { reviews: [{ status: 'CURRENT', review_name: 'Q2 access review', reviewer_name: 'Avery Grant', started_at: new Date().toISOString(), due_at: null, total_entries: 2, reviewed_entries: 2, revoked_entries: 0, entries: [] }] },
       complianceAiGovernance: { logs: [{ actor_name: 'Avery Grant', actor_role: 'admin', module: 'AI Operations', agent_key: 'ops-copilot', event_type: 'ADVISORY', data_scope: 'tenant', provider_status: 'NOT_CONFIGURED', human_approval_required: true, human_approved_at: null, created_at: new Date().toISOString() }], summary: { total: 1 } },
       complianceSecurityPosture: { posture: { sso: { status: 'CONFIGURATION_REQUIRED' } } },
-      complianceAvailabilityPosture: { posture: { database: { status: 'CURRENT', migrationVersion: 22, expectedVersion: 22, path: 'demo' } } },
+      complianceAvailabilityPosture: { posture: { database: { status: 'CURRENT', migrationVersion: 23, expectedVersion: 23, path: 'demo' } } },
       aiSummary: { providerStatus: 'NOT_CONFIGURED', open: 1, approvalPending: 1, totalRuns: 1 },
       aiRecommendations: { recommendations: [{ id: 'ai-1', category: 'Procurement', title: 'Review supplier risk', severity: 'MEDIUM', agent_key: 'procurement-advisor', human_summary: 'Supplier risk is elevated', status: 'OPEN' }] },
       aiRuns: { runs: [{ id: 'run-1', created_at: new Date().toISOString() }] },
@@ -3537,6 +3580,87 @@ test('runtime selection prefers sqlite locally and postgres in production', () =
   assert.equal(storageProd.mode, 's3');
 });
 
+test('runtime selection honors production env aliases for auth, session, and storage', () => {
+  const db = getDatabaseRuntimeSelection({
+    NODE_ENV: 'production',
+    DATABASE_PROVIDER: 'postgres',
+    DATABASE_URL: 'postgres://example'
+  });
+  assert.equal(db.provider, 'postgres');
+  assert.equal(db.databaseUrl, 'postgres://example');
+
+  const tenant = getTenantOidcRuntimeSelection({
+    OIDC_ISSUER: 'https://tenant.example.com',
+    OIDC_CLIENT_ID: 'tenant-client',
+    OIDC_CLIENT_SECRET: 'tenant-secret',
+    OIDC_REDIRECT_URI: 'https://app.example.com/auth/oidc/callback',
+    APP_BASE_URL: 'https://app.example.com',
+    AUTH_MODE: 'oidc'
+  });
+  assert.equal(tenant.issuer, 'https://tenant.example.com');
+  assert.equal(tenant.baseUrl, 'https://app.example.com');
+
+  const platform = getPlatformOidcRuntimeSelection({
+    PLATFORM_OIDC_ISSUER: 'https://platform.example.com',
+    PLATFORM_OIDC_CLIENT_ID: 'platform-client',
+    PLATFORM_OIDC_CLIENT_SECRET: 'platform-secret',
+    PLATFORM_OIDC_REDIRECT_URI: 'https://app.example.com/platform/auth/oidc/callback',
+    PLATFORM_BASE_URL: 'https://admin.example.com',
+    PLATFORM_AUTH_MODE: 'oidc'
+  });
+  assert.equal(platform.issuer, 'https://platform.example.com');
+  assert.equal(platform.baseUrl, 'https://admin.example.com');
+
+  const session = getSessionRuntimeSelection({
+    SESSION_SECRET: 'tenant-session-secret',
+    PLATFORM_SESSION_SECRET: 'platform-session-secret',
+    COOKIE_SECURE: 'true',
+    COOKIE_SAME_SITE: 'lax'
+  });
+  assert.equal(session.tenantSecret, 'tenant-session-secret');
+  assert.equal(session.platformSecret, 'platform-session-secret');
+  assert.equal(session.cookieSecure, 'true');
+  assert.equal(session.cookieSameSite, 'lax');
+
+  const storage = getEvidenceStorageRuntimeSelection({
+    NODE_ENV: 'production',
+    EVIDENCE_STORAGE_PROVIDER: 's3',
+    S3_BUCKET: 'opstrax-evidence',
+    S3_REGION: 'us-east-1',
+    S3_ENDPOINT: 'https://minio.example.com',
+    S3_ACCESS_KEY_ID: 'access-key',
+    S3_SECRET_ACCESS_KEY: 'secret-key',
+    S3_SESSION_TOKEN: 'session-token',
+    S3_FORCE_PATH_STYLE: 'true',
+    EVIDENCE_SIGNING_SECRET: 'evidence-signing-secret'
+  });
+  assert.equal(storage.mode, 's3');
+  assert.equal(storage.bucket, 'opstrax-evidence');
+  assert.equal(storage.region, 'us-east-1');
+  assert.equal(storage.endpoint, 'https://minio.example.com');
+  assert.equal(storage.accessKeyId, 'access-key');
+  assert.equal(storage.secretAccessKey, 'secret-key');
+  assert.equal(storage.sessionToken, 'session-token');
+  assert.equal(storage.forcePathStyle, 'true');
+  assert.equal(storage.signingSecret, 'evidence-signing-secret');
+});
+
+function runStartupCheckInChild(env) {
+  const childEnv = { ...process.env, ...env };
+  if (!Object.prototype.hasOwnProperty.call(env, 'OPSTRAX_ALLOW_DEV_CONTEXT')) delete childEnv.OPSTRAX_ALLOW_DEV_CONTEXT;
+  if (!Object.prototype.hasOwnProperty.call(env, 'ALLOW_DEV_CONTEXT')) delete childEnv.ALLOW_DEV_CONTEXT;
+  execFileSync(
+    process.execPath,
+    ['--input-type=module', '-e', "import { runStartupChecks } from './src/startup.js'; runStartupChecks();"],
+    {
+      cwd: process.cwd(),
+      env: childEnv,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    }
+  );
+}
+
 test('production mode fails without PostgreSQL config', () => {
   const script = `import './src/db.js';`;
   let failed = false;
@@ -3557,6 +3681,205 @@ test('production mode fails without PostgreSQL config', () => {
     assert.match(String(error.stderr || error.stdout || error.message), /DATABASE_URL is required|required in production/);
   }
   assert.equal(failed, true);
+});
+
+test('production startup passes with complete production env aliases', () => {
+  assert.doesNotThrow(() => runStartupCheckInChild({
+    NODE_ENV: 'production',
+    DATABASE_PROVIDER: 'postgres',
+    DATABASE_URL: 'postgres://example',
+    OIDC_ISSUER: 'https://tenant.example.com',
+    OIDC_CLIENT_ID: 'tenant-client',
+    OIDC_CLIENT_SECRET: 'tenant-secret',
+    OIDC_REDIRECT_URI: 'https://app.example.com/auth/oidc/callback',
+    PLATFORM_OIDC_ISSUER: 'https://platform.example.com',
+    PLATFORM_OIDC_CLIENT_ID: 'platform-client',
+    PLATFORM_OIDC_CLIENT_SECRET: 'platform-secret',
+    PLATFORM_OIDC_REDIRECT_URI: 'https://app.example.com/platform/auth/oidc/callback',
+    SESSION_SECRET: 'tenant-session-secret',
+    PLATFORM_SESSION_SECRET: 'platform-session-secret',
+    COOKIE_SECURE: 'true',
+    COOKIE_SAME_SITE: 'lax',
+    EVIDENCE_STORAGE_PROVIDER: 's3',
+    S3_BUCKET: 'opstrax-evidence',
+    S3_REGION: 'us-east-1',
+    EVIDENCE_SIGNING_SECRET: 'evidence-signing-secret'
+  }));
+});
+
+test('production startup blocks ALLOW_DEV_CONTEXT even when aliases are otherwise complete', () => {
+  let failed = false;
+  try {
+    runStartupCheckInChild({
+      NODE_ENV: 'production',
+      DATABASE_PROVIDER: 'postgres',
+      DATABASE_URL: 'postgres://example',
+      OIDC_ISSUER: 'https://tenant.example.com',
+      OIDC_CLIENT_ID: 'tenant-client',
+      OIDC_CLIENT_SECRET: 'tenant-secret',
+      OIDC_REDIRECT_URI: 'https://app.example.com/auth/oidc/callback',
+      PLATFORM_OIDC_ISSUER: 'https://platform.example.com',
+      PLATFORM_OIDC_CLIENT_ID: 'platform-client',
+      PLATFORM_OIDC_CLIENT_SECRET: 'platform-secret',
+      PLATFORM_OIDC_REDIRECT_URI: 'https://app.example.com/platform/auth/oidc/callback',
+      SESSION_SECRET: 'tenant-session-secret',
+      PLATFORM_SESSION_SECRET: 'platform-session-secret',
+      COOKIE_SECURE: 'true',
+      EVIDENCE_STORAGE_PROVIDER: 's3',
+      S3_BUCKET: 'opstrax-evidence',
+      S3_REGION: 'us-east-1',
+      EVIDENCE_SIGNING_SECRET: 'evidence-signing-secret',
+      ALLOW_DEV_CONTEXT: '1'
+    });
+  } catch (error) {
+    failed = true;
+    assert.match(String(error.stderr || error.stdout || error.message), /ALLOW_DEV_CONTEXT=1 is not allowed/i);
+  }
+  assert.equal(failed, true);
+});
+
+test('production startup fails when tenant OIDC alias vars are missing', () => {
+  let failed = false;
+  try {
+    runStartupCheckInChild({
+      NODE_ENV: 'production',
+      DATABASE_PROVIDER: 'postgres',
+      DATABASE_URL: 'postgres://example',
+      OIDC_ISSUER: 'https://tenant.example.com',
+      OIDC_CLIENT_ID: '',
+      OIDC_CLIENT_SECRET: 'tenant-secret',
+      OIDC_REDIRECT_URI: 'https://app.example.com/auth/oidc/callback',
+      PLATFORM_OIDC_ISSUER: 'https://platform.example.com',
+      PLATFORM_OIDC_CLIENT_ID: 'platform-client',
+      PLATFORM_OIDC_CLIENT_SECRET: 'platform-secret',
+      PLATFORM_OIDC_REDIRECT_URI: 'https://app.example.com/platform/auth/oidc/callback',
+      SESSION_SECRET: 'tenant-session-secret',
+      PLATFORM_SESSION_SECRET: 'platform-session-secret',
+      COOKIE_SECURE: 'true',
+      EVIDENCE_STORAGE_PROVIDER: 's3',
+      S3_BUCKET: 'opstrax-evidence',
+      S3_REGION: 'us-east-1',
+      EVIDENCE_SIGNING_SECRET: 'evidence-signing-secret'
+    });
+  } catch (error) {
+    failed = true;
+    assert.match(String(error.stderr || error.stdout || error.message), /OIDC_CLIENT_ID is required/i);
+  }
+  assert.equal(failed, true);
+});
+
+test('production startup fails when platform OIDC alias vars are missing', () => {
+  let failed = false;
+  try {
+    runStartupCheckInChild({
+      NODE_ENV: 'production',
+      DATABASE_PROVIDER: 'postgres',
+      DATABASE_URL: 'postgres://example',
+      OIDC_ISSUER: 'https://tenant.example.com',
+      OIDC_CLIENT_ID: 'tenant-client',
+      OIDC_CLIENT_SECRET: 'tenant-secret',
+      OIDC_REDIRECT_URI: 'https://app.example.com/auth/oidc/callback',
+      PLATFORM_OIDC_ISSUER: 'https://platform.example.com',
+      PLATFORM_OIDC_CLIENT_ID: '',
+      PLATFORM_OIDC_CLIENT_SECRET: 'platform-secret',
+      PLATFORM_OIDC_REDIRECT_URI: 'https://app.example.com/platform/auth/oidc/callback',
+      SESSION_SECRET: 'tenant-session-secret',
+      PLATFORM_SESSION_SECRET: 'platform-session-secret',
+      COOKIE_SECURE: 'true',
+      EVIDENCE_STORAGE_PROVIDER: 's3',
+      S3_BUCKET: 'opstrax-evidence',
+      S3_REGION: 'us-east-1',
+      EVIDENCE_SIGNING_SECRET: 'evidence-signing-secret'
+    });
+  } catch (error) {
+    failed = true;
+    assert.match(String(error.stderr || error.stdout || error.message), /PLATFORM_OIDC_CLIENT_ID is required/i);
+  }
+  assert.equal(failed, true);
+});
+
+test('production startup fails when storage alias vars are missing', () => {
+  let failed = false;
+  try {
+    runStartupCheckInChild({
+      NODE_ENV: 'production',
+      DATABASE_PROVIDER: 'postgres',
+      DATABASE_URL: 'postgres://example',
+      OIDC_ISSUER: 'https://tenant.example.com',
+      OIDC_CLIENT_ID: 'tenant-client',
+      OIDC_CLIENT_SECRET: 'tenant-secret',
+      OIDC_REDIRECT_URI: 'https://app.example.com/auth/oidc/callback',
+      PLATFORM_OIDC_ISSUER: 'https://platform.example.com',
+      PLATFORM_OIDC_CLIENT_ID: 'platform-client',
+      PLATFORM_OIDC_CLIENT_SECRET: 'platform-secret',
+      PLATFORM_OIDC_REDIRECT_URI: 'https://app.example.com/platform/auth/oidc/callback',
+      SESSION_SECRET: 'tenant-session-secret',
+      PLATFORM_SESSION_SECRET: 'platform-session-secret',
+      COOKIE_SECURE: 'true',
+      EVIDENCE_STORAGE_PROVIDER: 's3',
+      S3_BUCKET: '',
+      S3_REGION: 'us-east-1',
+      EVIDENCE_SIGNING_SECRET: ''
+    });
+  } catch (error) {
+    failed = true;
+    assert.match(String(error.stderr || error.stdout || error.message), /S3_BUCKET and S3_REGION are required|EVIDENCE_SIGNING_SECRET is required/i);
+  }
+  assert.equal(failed, true);
+});
+
+test('production startup fails when secure cookies are not enabled', () => {
+  let failed = false;
+  try {
+    runStartupCheckInChild({
+      NODE_ENV: 'production',
+      DATABASE_PROVIDER: 'postgres',
+      DATABASE_URL: 'postgres://example',
+      OIDC_ISSUER: 'https://tenant.example.com',
+      OIDC_CLIENT_ID: 'tenant-client',
+      OIDC_CLIENT_SECRET: 'tenant-secret',
+      OIDC_REDIRECT_URI: 'https://app.example.com/auth/oidc/callback',
+      PLATFORM_OIDC_ISSUER: 'https://platform.example.com',
+      PLATFORM_OIDC_CLIENT_ID: 'platform-client',
+      PLATFORM_OIDC_CLIENT_SECRET: 'platform-secret',
+      PLATFORM_OIDC_REDIRECT_URI: 'https://app.example.com/platform/auth/oidc/callback',
+      SESSION_SECRET: 'tenant-session-secret',
+      PLATFORM_SESSION_SECRET: 'platform-session-secret',
+      COOKIE_SECURE: 'false',
+      EVIDENCE_STORAGE_PROVIDER: 's3',
+      S3_BUCKET: 'opstrax-evidence',
+      S3_REGION: 'us-east-1',
+      EVIDENCE_SIGNING_SECRET: 'evidence-signing-secret'
+    });
+  } catch (error) {
+    failed = true;
+    assert.match(String(error.stderr || error.stdout || error.message), /COOKIE_SECURE cannot be false/i);
+  }
+  assert.equal(failed, true);
+});
+
+test('production auth bootstrap hides demo entry when local demo mode is disabled', async () => {
+  const previousEnv = {
+    NODE_ENV: process.env.NODE_ENV,
+    OPSTRAX_ALLOW_DEV_CONTEXT: process.env.OPSTRAX_ALLOW_DEV_CONTEXT,
+    OPSTRAX_AUTH_MODE: process.env.OPSTRAX_AUTH_MODE
+  };
+  process.env.NODE_ENV = 'production';
+  delete process.env.OPSTRAX_ALLOW_DEV_CONTEXT;
+  delete process.env.OPSTRAX_AUTH_MODE;
+  try {
+    const { response, payload } = await httpRequest('/api/auth/bootstrap');
+    assert.equal(response.status, 200);
+    assert.equal(payload.demo_login_enabled, false);
+    assert.notEqual(payload.mode, 'dev');
+  } finally {
+    if (previousEnv.NODE_ENV === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousEnv.NODE_ENV;
+    if (previousEnv.OPSTRAX_ALLOW_DEV_CONTEXT === undefined) delete process.env.OPSTRAX_ALLOW_DEV_CONTEXT;
+    else process.env.OPSTRAX_ALLOW_DEV_CONTEXT = previousEnv.OPSTRAX_ALLOW_DEV_CONTEXT;
+    if (previousEnv.OPSTRAX_AUTH_MODE === undefined) delete process.env.OPSTRAX_AUTH_MODE;
+    else process.env.OPSTRAX_AUTH_MODE = previousEnv.OPSTRAX_AUTH_MODE;
+  }
 });
 
 test('production mode never silently falls back to SQLite', () => {
@@ -3594,7 +3917,7 @@ test('production mode rejects unsupported database providers instead of falling 
     });
   } catch (error) {
     failed = true;
-    assert.match(String(error.stderr || error.stdout || error.message), /Unsupported OPSTRAX_DB_PROVIDER/);
+    assert.match(String(error.stderr || error.stdout || error.message), /Unsupported DATABASE_PROVIDER/);
   }
   assert.equal(failed, true);
 });
@@ -3721,6 +4044,12 @@ test('startup check: oidc mode with missing client id is fatal in production', (
   delete process.env.OPSTRAX_OIDC_CLIENT_ID;
   delete process.env.OPSTRAX_ALLOW_DEV_CONTEXT;
   delete process.env.OPSTRAX_AUTH_MODE;
+  delete process.env.OPSTRAX_PLATFORM_OIDC_ISSUER;
+  delete process.env.OPSTRAX_PLATFORM_OIDC_CLIENT_ID;
+  delete process.env.OPSTRAX_PLATFORM_OIDC_CLIENT_SECRET;
+  delete process.env.OPSTRAX_PLATFORM_OIDC_REDIRECT_URI;
+  delete process.env.OPSTRAX_SESSION_SECRET;
+  delete process.env.OPSTRAX_PLATFORM_SESSION_SECRET;
   try {
     runStartupChecks();
     assert.ok(exitCodes.includes(1), 'process.exit(1) must be called when oidc issuer set but client id missing in production');
@@ -3732,12 +4061,66 @@ test('startup check: oidc mode with missing client id is fatal in production', (
   }
 });
 
+test('startup check: production auth cutover requires separate tenant and platform OIDC plus session secrets', () => {
+  const savedEnv = { ...process.env };
+  const exitCodes = [];
+  const origExit = process.exit;
+  process.exit = (code) => { exitCodes.push(code); };
+  process.env.NODE_ENV = 'production';
+  process.env.OPSTRAX_DB_PROVIDER = 'postgres';
+  process.env.DATABASE_URL = 'postgres://example';
+  process.env.OPSTRAX_EVIDENCE_STORAGE = 's3';
+  process.env.OPSTRAX_EVIDENCE_BUCKET = 'bucket';
+  process.env.OPSTRAX_EVIDENCE_REGION = 'us-east-1';
+  process.env.OPSTRAX_EVIDENCE_SIGNING_SECRET = 'secret';
+  process.env.OPSTRAX_OIDC_ISSUER = 'https://tenant.example.com';
+  process.env.OPSTRAX_OIDC_CLIENT_ID = 'tenant-client';
+  process.env.OPSTRAX_OIDC_CLIENT_SECRET = 'tenant-secret';
+  process.env.OPSTRAX_OIDC_REDIRECT_URI = 'https://app.example.com/auth/oidc/callback';
+  delete process.env.OPSTRAX_PLATFORM_OIDC_ISSUER;
+  delete process.env.OPSTRAX_PLATFORM_OIDC_CLIENT_ID;
+  delete process.env.OPSTRAX_PLATFORM_OIDC_CLIENT_SECRET;
+  delete process.env.OPSTRAX_PLATFORM_OIDC_REDIRECT_URI;
+  delete process.env.OPSTRAX_SESSION_SECRET;
+  delete process.env.OPSTRAX_PLATFORM_SESSION_SECRET;
+  try {
+    runStartupChecks();
+    assert.ok(exitCodes.includes(1), 'process.exit(1) must be called when platform OIDC/session secrets are missing in production');
+  } finally {
+    process.exit = origExit;
+    Object.assign(process.env, savedEnv);
+    if (!savedEnv.NODE_ENV) delete process.env.NODE_ENV;
+    if (!savedEnv.OPSTRAX_DB_PROVIDER) delete process.env.OPSTRAX_DB_PROVIDER;
+    if (!savedEnv.DATABASE_URL) delete process.env.DATABASE_URL;
+    if (!savedEnv.OPSTRAX_EVIDENCE_STORAGE) delete process.env.OPSTRAX_EVIDENCE_STORAGE;
+    if (!savedEnv.OPSTRAX_EVIDENCE_BUCKET) delete process.env.OPSTRAX_EVIDENCE_BUCKET;
+    if (!savedEnv.OPSTRAX_EVIDENCE_REGION) delete process.env.OPSTRAX_EVIDENCE_REGION;
+    if (!savedEnv.OPSTRAX_EVIDENCE_SIGNING_SECRET) delete process.env.OPSTRAX_EVIDENCE_SIGNING_SECRET;
+    if (!savedEnv.OPSTRAX_OIDC_ISSUER) delete process.env.OPSTRAX_OIDC_ISSUER;
+    if (!savedEnv.OPSTRAX_OIDC_CLIENT_ID) delete process.env.OPSTRAX_OIDC_CLIENT_ID;
+    if (!savedEnv.OPSTRAX_OIDC_CLIENT_SECRET) delete process.env.OPSTRAX_OIDC_CLIENT_SECRET;
+    if (!savedEnv.OPSTRAX_OIDC_REDIRECT_URI) delete process.env.OPSTRAX_OIDC_REDIRECT_URI;
+    if (!savedEnv.OPSTRAX_PLATFORM_OIDC_ISSUER) delete process.env.OPSTRAX_PLATFORM_OIDC_ISSUER;
+    if (!savedEnv.OPSTRAX_PLATFORM_OIDC_CLIENT_ID) delete process.env.OPSTRAX_PLATFORM_OIDC_CLIENT_ID;
+    if (!savedEnv.OPSTRAX_PLATFORM_OIDC_CLIENT_SECRET) delete process.env.OPSTRAX_PLATFORM_OIDC_CLIENT_SECRET;
+    if (!savedEnv.OPSTRAX_PLATFORM_OIDC_REDIRECT_URI) delete process.env.OPSTRAX_PLATFORM_OIDC_REDIRECT_URI;
+    if (!savedEnv.OPSTRAX_SESSION_SECRET) delete process.env.OPSTRAX_SESSION_SECRET;
+    if (!savedEnv.OPSTRAX_PLATFORM_SESSION_SECRET) delete process.env.OPSTRAX_PLATFORM_SESSION_SECRET;
+  }
+});
+
 test('verify-migration script exits 0 against test database', () => {
   const result = execFileSync('node', ['scripts/verify-migration.mjs'], {
-    env: { ...process.env, OPSTRAX_DB_PATH: process.env.OPSTRAX_DB_PATH },
+    env: {
+      ...process.env,
+      OPSTRAX_DB_PATH: process.env.OPSTRAX_DB_PATH,
+      OPSTRAX_DB_PROVIDER: 'sqlite',
+      DATABASE_URL: '',
+      OPSTRAX_DATABASE_URL: ''
+    },
     encoding: 'utf8'
   });
-  assert.ok(result.includes('OK All 22 migrations verified'), 'verify-migration must confirm all 22 migrations');
+  assert.ok(result.includes('OK All 23 migrations verified'), 'verify-migration must confirm all 23 migrations');
 });
 
 test('production 500 errors do not expose stack traces in response body', async () => {
@@ -3908,6 +4291,32 @@ test('demo data: AI recommendations have agent_key and category for traceability
       assert.ok(rec.subject_type && rec.subject_type.length > 0,
         `AI recommendation must have subject_type: ${JSON.stringify(rec).slice(0, 80)}`);
     }
+  }
+});
+
+test('platform demo login endpoint is disabled in production', async () => {
+  const previousEnv = {
+    NODE_ENV: process.env.NODE_ENV,
+    OPSTRAX_ALLOW_DEV_CONTEXT: process.env.OPSTRAX_ALLOW_DEV_CONTEXT,
+    OPSTRAX_AUTH_MODE: process.env.OPSTRAX_AUTH_MODE
+  };
+  process.env.NODE_ENV = 'production';
+  process.env.OPSTRAX_ALLOW_DEV_CONTEXT = '1';
+  delete process.env.OPSTRAX_AUTH_MODE;
+  try {
+    const { response, payload } = await httpRequest('/api/platform/dev/demo-login', {
+      method: 'POST',
+      body: {}
+    });
+    assert.equal(response.status, 404);
+    assert.match(payload.error, /Not found/);
+  } finally {
+    if (previousEnv.NODE_ENV === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousEnv.NODE_ENV;
+    if (previousEnv.OPSTRAX_ALLOW_DEV_CONTEXT === undefined) delete process.env.OPSTRAX_ALLOW_DEV_CONTEXT;
+    else process.env.OPSTRAX_ALLOW_DEV_CONTEXT = previousEnv.OPSTRAX_ALLOW_DEV_CONTEXT;
+    if (previousEnv.OPSTRAX_AUTH_MODE === undefined) delete process.env.OPSTRAX_AUTH_MODE;
+    else process.env.OPSTRAX_AUTH_MODE = previousEnv.OPSTRAX_AUTH_MODE;
   }
 });
 
@@ -4162,7 +4571,7 @@ test('getAvailabilityPosture returns structured posture with DB and health check
   assert.ok(result.posture, 'posture must be present');
   assert.strictEqual(result.posture.healthEndpoints?.liveness?.path, '/healthz', 'liveness path must be /healthz');
   assert.strictEqual(result.posture.healthEndpoints?.readiness?.path, '/healthz/ready', 'readiness path must be /healthz/ready');
-  assert.ok(result.posture.database?.migrationVersion >= 22, `DB migration version must be ≥22, got ${result.posture.database?.migrationVersion}`);
+  assert.ok(result.posture.database?.migrationVersion >= 23, `DB migration version must be ≥23, got ${result.posture.database?.migrationVersion}`);
   assert.strictEqual(result.posture.database?.status, 'CURRENT', 'DB must be CURRENT after migration 020');
   assert.ok(result.posture.backup?.status, 'backup status must be present');
   assert.ok(result.posture.monitoring?.status, 'monitoring status must be present');
@@ -4219,6 +4628,9 @@ test('production foundation config tables remain tenant-scoped', () => {
   const restores = listRestoreTests(tenantA);
   assert.equal(backups.records[0].status, 'VERIFIED');
   assert.equal(restores.tests[0].status, 'VERIFIED');
+  execute('DELETE FROM restore_test_records WHERE id = ?', ['restore-test-intelli']);
+  execute('DELETE FROM backup_records WHERE id = ?', ['backup-test-intelli']);
+  execute('DELETE FROM sso_configurations WHERE id IN (?, ?)', ['sso-test-intelli', 'sso-test-evostel']);
 });
 
 test('compliancePage renders with tabs and real control count', () => {

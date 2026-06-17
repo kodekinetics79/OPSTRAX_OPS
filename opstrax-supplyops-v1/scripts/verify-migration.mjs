@@ -7,7 +7,7 @@
  * Exit 1: one or more migrations are missing or the runtime is not configured.
  */
 
-const EXPECTED_VERSION = 20;
+const EXPECTED_VERSION = 23;
 
 let selectOne;
 let getDatabaseRuntimeInfo;

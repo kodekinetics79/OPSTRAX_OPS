@@ -7,6 +7,13 @@ const tenants = [
     tier: 'full'
   },
   {
+    id: 'tenant_northstar_logistics',
+    name: 'Northstar Logistics',
+    slug: 'northstar-logistics',
+    industry: 'Distribution & Fleet Logistics',
+    tier: 'full'
+  },
+  {
     id: 'tenant_evostel',
     name: 'Evostel LLC',
     slug: 'evostel',
@@ -2022,8 +2029,218 @@ function buildTenantData(tenant, index) {
         updated_at: '2026-06-13T15:30:00Z',
         updated_by_user_id: users.find((user) => user.role_key === 'supervisor').id
       }
-    );
-  }
+  );
+}
+
+function pid(prefix, suffix) {
+  return `platform_${prefix}_${suffix}`;
+}
+
+function pid(prefix, suffix) {
+  return `platform_${prefix}_${suffix}`;
+}
+
+function buildPlatformSeedData() {
+  const pid = (prefix, suffix) => `platform_${prefix}_${suffix}`;
+  const platformId = pid;
+  const platformUsers = [
+    { key: 'owner', display_name: 'Morgan Vale', email: 'owner@opstrax.local', role_key: 'PLATFORM_OWNER' },
+    { key: 'admin', display_name: 'Jordan Cross', email: 'admin@opstrax.local', role_key: 'PLATFORM_ADMIN' },
+    { key: 'support', display_name: 'Riley Hart', email: 'support@opstrax.local', role_key: 'PLATFORM_SUPPORT' },
+    { key: 'billing', display_name: 'Avery Cole', email: 'billing@opstrax.local', role_key: 'PLATFORM_BILLING' },
+    { key: 'security', display_name: 'Taylor Reed', email: 'security@opstrax.local', role_key: 'PLATFORM_SECURITY' },
+    { key: 'auditor', display_name: 'Casey Brooks', email: 'auditor@opstrax.local', role_key: 'PLATFORM_AUDITOR' }
+  ].map((user) => ({
+    id: pid('user', user.key),
+    email: user.email,
+    display_name: user.display_name,
+    role_key: user.role_key,
+    active: 1,
+    created_at: '2026-06-13T08:00:00Z',
+    updated_at: '2026-06-13T08:00:00Z'
+  }));
+
+  const platformUserRoles = platformUsers.map((user) => ({
+    id: pid('role', user.role_key.toLowerCase()),
+    platform_user_id: user.id,
+    role_key: user.role_key,
+    assigned_at: '2026-06-13T08:00:00Z',
+    assigned_by_platform_user_id: user.id
+  }));
+
+  const plans = tenants.map((tenant, index) => ({
+    id: pid('plan', tenant.id),
+    tenant_id: tenant.id,
+    plan_code: tenant.tier === 'full' ? 'ENTERPRISE' : 'RESTRICTED',
+    plan_name: tenant.tier === 'full' ? 'Enterprise Control Plane' : 'Restricted Ops Plan',
+    billing_cycle: index === 0 ? 'MONTHLY' : 'ANNUAL',
+    seat_limit: tenant.tier === 'full' ? 24 : 6,
+    module_limit_json: JSON.stringify({
+      command_center: true,
+      inventory_control: tenant.tier === 'full',
+      procurement_purchasing: tenant.tier === 'full',
+      compliance_center: true
+    }),
+    status: 'ACTIVE',
+    effective_at: '2026-06-01T00:00:00Z',
+    expires_at: null,
+    created_at: '2026-06-13T08:05:00Z',
+    updated_at: '2026-06-13T08:05:00Z'
+  }));
+
+  const subscriptions = plans.map((plan, index) => ({
+    id: pid('subscription', tenants[index].id),
+    tenant_id: tenants[index].id,
+    plan_id: plan.id,
+    status: tenants[index].tier === 'full' ? 'ACTIVE' : 'RESTRICTED',
+    seat_limit: plan.seat_limit,
+    consumed_seats: tenants[index].tier === 'full' ? 13 : 4,
+    reserved_seats: tenants[index].tier === 'full' ? 2 : 1,
+    renewal_at: tenants[index].tier === 'full' ? '2026-12-01T00:00:00Z' : '2026-11-15T00:00:00Z',
+    suspension_reason: '',
+    created_at: '2026-06-13T08:05:00Z',
+    updated_at: '2026-06-13T08:05:00Z'
+  }));
+
+  const entitlements = tenants.flatMap((tenant) => {
+    const enabled = tenant.tier === 'full'
+      ? featureKeys
+      : ['command_center', 'inventory_control', 'internal_storefront', 'audit_black_box', 'compliance_center', 'reports'];
+    return featureKeys.map((featureKey, index) => ({
+      id: pid('entitlement', `${tenant.id}_${index}`),
+      tenant_id: tenant.id,
+      feature_key: featureKey,
+      entitlement_status: enabled.includes(featureKey) ? 'ENABLED' : 'DISABLED',
+      source: tenant.tier === 'full' ? 'PLAN' : 'PLAN_RESTRICTION',
+      notes: enabled.includes(featureKey) ? 'Entitled under current plan.' : 'Restricted from the current plan.',
+      created_at: '2026-06-13T08:05:00Z',
+      updated_at: '2026-06-13T08:05:00Z'
+    }));
+  });
+
+  const usageSnapshots = tenants.map((tenant, index) => ({
+    id: pid('usage', tenant.id),
+    tenant_id: tenant.id,
+    snapshot_date: '2026-06-13',
+    active_users: tenant.tier === 'full' ? 14 : 5,
+    active_devices: tenant.tier === 'full' ? 3 : 1,
+    api_requests: tenant.tier === 'full' ? 1820 : 240,
+    open_work_items: tenant.tier === 'full' ? 17 : 4,
+    storage_mb: tenant.tier === 'full' ? 840 : 128,
+    export_batches: tenant.tier === 'full' ? 6 : 1,
+    offline_batches: tenant.tier === 'full' ? 3 : 0,
+    created_at: '2026-06-13T08:06:00Z',
+    updated_at: '2026-06-13T08:06:00Z'
+  }));
+
+  const healthSnapshots = tenants.map((tenant) => ({
+    id: pid('health', tenant.id),
+    tenant_id: tenant.id,
+    snapshot_date: '2026-06-13',
+    auth_status: tenant.tier === 'full' ? 'CONFIGURED' : 'CONFIGURATION_REQUIRED',
+    storage_status: tenant.tier === 'full' ? 'CONFIGURED' : 'CONFIGURATION_REQUIRED',
+    integration_status: tenant.tier === 'full' ? 'ATTENTION_REQUIRED' : 'RESTRICTED',
+    audit_status: 'CONFIGURED',
+    support_status: tenant.tier === 'full' ? 'HEALTHY' : 'MONITORED',
+    note: tenant.tier === 'full' ? 'All RC1 control surfaces are live.' : 'Restricted workspace with hidden modules enforced.',
+    created_at: '2026-06-13T08:07:00Z',
+    updated_at: '2026-06-13T08:07:00Z'
+  }));
+
+  const supportSessions = [
+    {
+      id: pid('support_session', 'if-001'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_SUPPORT').id,
+      tenant_id: 'tenant_intelliflow_systems',
+      subject_user_id: 'tenant_intelliflow_systems_user_admin',
+      session_type: 'ADVISORY',
+      status: 'OPEN',
+      reason: 'Review production runtime readiness and release posture.',
+      summary: 'RC1 support observation session.',
+      evidence_required: 1,
+      opened_at: '2026-06-13T08:10:00Z',
+      closed_at: null,
+      created_at: '2026-06-13T08:10:00Z',
+      updated_at: '2026-06-13T08:10:00Z'
+    },
+    {
+      id: pid('support_session', 'ev-001'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_SUPPORT').id,
+      tenant_id: 'tenant_evostel',
+      subject_user_id: 'tenant_evostel_user_admin',
+      session_type: 'AUDIT',
+      status: 'CLOSED',
+      reason: 'Restricted-tenant access verification.',
+      summary: 'Access denial verified for restricted modules.',
+      evidence_required: 1,
+      opened_at: '2026-06-13T08:12:00Z',
+      closed_at: '2026-06-13T08:18:00Z',
+      created_at: '2026-06-13T08:12:00Z',
+      updated_at: '2026-06-13T08:18:00Z'
+    }
+  ];
+
+  const auditEvents = [
+    {
+      id: pid('audit', '001'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_OWNER').id,
+      tenant_id: 'tenant_intelliflow_systems',
+      actor_role: 'PLATFORM_OWNER',
+      action: 'PLATFORM_SEED_INITIALIZED',
+      entity_type: 'platform',
+      entity_id: 'control-plane',
+      summary: 'Platform control plane seeded for IntelliFlow Systems, Northstar Logistics, and Evostel LLC',
+      details_json: JSON.stringify({ tenants: tenants.map((tenant) => tenant.id) }),
+      request_id: 'seed-platform',
+      created_at: '2026-06-13T08:00:00Z'
+    }
+  ];
+
+  const billingEvents = [
+    {
+      id: pid('billing', '001'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_BILLING').id,
+      tenant_id: 'tenant_intelliflow_systems',
+      event_type: 'SUBSCRIPTION_REVIEW',
+      status: 'RECORDED',
+      amount_cents: 480000,
+      currency: 'USD',
+      summary: 'Enterprise subscription review completed.',
+      details_json: JSON.stringify({ plan: 'Enterprise Control Plane', seat_limit: 24 }),
+      created_at: '2026-06-13T08:09:00Z',
+      updated_at: '2026-06-13T08:09:00Z'
+    }
+  ];
+
+  const securityEvents = [
+    {
+      id: pid('security', '001'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_SECURITY').id,
+      tenant_id: 'tenant_evostel',
+      event_type: 'RESTRICTED_MODULE_DENIAL',
+      severity: 'INFO',
+      status: 'RECORDED',
+      summary: 'Restricted tenant denied access to procurement and finance modules.',
+      details_json: JSON.stringify({ deniedModules: ['Procurement & Purchasing', 'Finance Export Hub'] }),
+      created_at: '2026-06-13T08:11:00Z',
+      updated_at: '2026-06-13T08:11:00Z'
+    }
+  ];
+
+  return {
+    platformUsers,
+    platformUserRoles,
+    tenantPlans: plans,
+    tenantSubscriptions: subscriptions,
+    tenantFeatureEntitlements: entitlements,
+    tenantUsageSnapshots: usageSnapshots,
+    tenantHealthSnapshots: healthSnapshots,
+    platformAuditEvents: auditEvents,
+    platformSupportSessions: supportSessions,
+    platformBillingEvents: billingEvents,
+    platformSecurityEvents: securityEvents
+  };
+}
 
   const documents = [
     { fileName: 'MedSupply-Invoice-8812.pdf', entityType: 'purchase_request', entityKey: 'PR-8812', docType: 'Invoice', visibility: 'FINANCE_PLUS_PURCHASING', uploadedBy: 'finance' },
@@ -2799,7 +3016,300 @@ function buildTenantData(tenant, index) {
   };
 }
 
+function buildPlatformSeedData() {
+  const pid = (prefix, suffix) => `platform_${prefix}_${suffix}`;
+  const platformId = pid;
+  const platformUsers = [
+    { key: 'owner', display_name: 'Morgan Vale', email: 'owner@opstrax.local', role_key: 'PLATFORM_OWNER' },
+    { key: 'admin', display_name: 'Jordan Cross', email: 'admin@opstrax.local', role_key: 'PLATFORM_ADMIN' },
+    { key: 'support', display_name: 'Riley Hart', email: 'support@opstrax.local', role_key: 'PLATFORM_SUPPORT' },
+    { key: 'billing', display_name: 'Avery Cole', email: 'billing@opstrax.local', role_key: 'PLATFORM_BILLING' },
+    { key: 'security', display_name: 'Taylor Reed', email: 'security@opstrax.local', role_key: 'PLATFORM_SECURITY' },
+    { key: 'auditor', display_name: 'Casey Brooks', email: 'auditor@opstrax.local', role_key: 'PLATFORM_AUDITOR' }
+  ].map((user) => ({
+    id: pid('user', user.key),
+    email: user.email,
+    display_name: user.display_name,
+    role_key: user.role_key,
+    active: 1,
+    created_at: '2026-06-13T08:00:00Z',
+    updated_at: '2026-06-13T08:00:00Z'
+  }));
+
+  const platformUserRoles = platformUsers.map((user) => ({
+    id: pid('role', user.role_key.toLowerCase()),
+    platform_user_id: user.id,
+    role_key: user.role_key,
+    assigned_at: '2026-06-13T08:00:00Z',
+    assigned_by_platform_user_id: user.id
+  }));
+
+  const tenantPlans = tenants.map((tenant, index) => ({
+    id: pid('plan', tenant.id),
+    tenant_id: tenant.id,
+    plan_code: tenant.id === 'tenant_intelliflow_systems'
+      ? 'GOVERNMENT'
+      : tenant.id === 'tenant_northstar_logistics'
+        ? 'ENTERPRISE'
+        : 'STARTER',
+    plan_name: tenant.id === 'tenant_intelliflow_systems'
+      ? 'Government Control Plane'
+      : tenant.id === 'tenant_northstar_logistics'
+        ? 'Enterprise Logistics Plan'
+        : 'Starter Restricted Ops Plan',
+    billing_cycle: tenant.id === 'tenant_evostel' ? 'ANNUAL' : 'MONTHLY',
+    seat_limit: tenant.id === 'tenant_intelliflow_systems' ? 24 : tenant.id === 'tenant_northstar_logistics' ? 18 : 6,
+    module_limit_json: JSON.stringify(
+      tenant.tier === 'full'
+        ? {
+            command_center: true,
+            inventory_control: true,
+            procurement_purchasing: true,
+            supplier_governance: true,
+            contract_repository: true,
+            budget_controls: true,
+            procure_to_pay_intelligence: true,
+            compliance_center: true
+          }
+        : { command_center: true, inventory_control: true, internal_storefront: true, audit_black_box: true, compliance_center: true, reports: true }
+    ),
+    status: 'ACTIVE',
+    effective_at: '2026-06-01T00:00:00Z',
+    expires_at: null,
+    created_at: '2026-06-13T08:05:00Z',
+    updated_at: '2026-06-13T08:05:00Z'
+  }));
+
+  const tenantSubscriptions = tenantPlans.map((plan, index) => ({
+    id: pid('subscription', tenants[index].id),
+    tenant_id: tenants[index].id,
+    plan_id: plan.id,
+    status: tenants[index].tier === 'full' ? 'ACTIVE' : 'RESTRICTED',
+    seat_limit: plan.seat_limit,
+    consumed_seats: tenants[index].tier === 'full' ? 13 : 4,
+    reserved_seats: tenants[index].tier === 'full' ? 2 : 1,
+    renewal_at: tenants[index].tier === 'full' ? '2026-12-01T00:00:00Z' : '2026-11-15T00:00:00Z',
+    suspension_reason: '',
+    created_at: '2026-06-13T08:05:00Z',
+    updated_at: '2026-06-13T08:05:00Z'
+  }));
+
+  const tenantFeatureEntitlements = tenants.flatMap((tenant) => {
+    const enabled = tenant.tier === 'full'
+      ? featureKeys
+      : ['command_center', 'inventory_control', 'internal_storefront', 'audit_black_box', 'compliance_center', 'reports'];
+    return featureKeys.map((featureKey, index) => ({
+      id: pid('entitlement', `${tenant.id}_${index}`),
+      tenant_id: tenant.id,
+      feature_key: featureKey,
+      entitlement_status: enabled.includes(featureKey) ? 'ENABLED' : 'DISABLED',
+      source: tenant.tier === 'full' ? 'PLAN' : 'PLAN_RESTRICTION',
+      notes: enabled.includes(featureKey) ? 'Entitled under current plan.' : 'Restricted from the current plan.',
+      created_at: '2026-06-13T08:05:00Z',
+      updated_at: '2026-06-13T08:05:00Z'
+    }));
+  });
+
+  const tenantUsageSnapshots = tenants.map((tenant) => ({
+    id: pid('usage', tenant.id),
+    tenant_id: tenant.id,
+    snapshot_date: '2026-06-13',
+    active_users: tenant.id === 'tenant_intelliflow_systems' ? 14 : tenant.id === 'tenant_northstar_logistics' ? 11 : 5,
+    active_devices: tenant.id === 'tenant_intelliflow_systems' ? 3 : tenant.id === 'tenant_northstar_logistics' ? 2 : 1,
+    api_requests: tenant.id === 'tenant_intelliflow_systems' ? 1820 : tenant.id === 'tenant_northstar_logistics' ? 1310 : 240,
+    open_work_items: tenant.id === 'tenant_intelliflow_systems' ? 17 : tenant.id === 'tenant_northstar_logistics' ? 12 : 4,
+    storage_mb: tenant.id === 'tenant_intelliflow_systems' ? 840 : tenant.id === 'tenant_northstar_logistics' ? 662 : 128,
+    export_batches: tenant.id === 'tenant_intelliflow_systems' ? 6 : tenant.id === 'tenant_northstar_logistics' ? 4 : 1,
+    offline_batches: tenant.id === 'tenant_intelliflow_systems' ? 3 : tenant.id === 'tenant_northstar_logistics' ? 2 : 0,
+    created_at: '2026-06-13T08:06:00Z',
+    updated_at: '2026-06-13T08:06:00Z'
+  }));
+
+  const tenantHealthSnapshots = tenants.map((tenant) => ({
+    id: pid('health', tenant.id),
+    tenant_id: tenant.id,
+    snapshot_date: '2026-06-13',
+    auth_status: tenant.tier === 'full' ? 'CONFIGURED' : 'CONFIGURATION_REQUIRED',
+    storage_status: tenant.tier === 'full' ? 'CONFIGURED' : 'CONFIGURATION_REQUIRED',
+    integration_status: tenant.id === 'tenant_intelliflow_systems' ? 'ATTENTION_REQUIRED' : tenant.id === 'tenant_northstar_logistics' ? 'HEALTHY' : 'RESTRICTED',
+    audit_status: 'CONFIGURED',
+    support_status: tenant.tier === 'full' ? 'HEALTHY' : 'MONITORED',
+    note: tenant.id === 'tenant_intelliflow_systems'
+      ? 'All RC1 control surfaces are live.'
+      : tenant.id === 'tenant_northstar_logistics'
+        ? 'Production-style enterprise tenant with full control plane coverage.'
+        : 'Restricted workspace with hidden modules enforced.',
+    created_at: '2026-06-13T08:07:00Z',
+    updated_at: '2026-06-13T08:07:00Z'
+  }));
+
+  const platformAuditEvents = [
+    {
+      id: pid('audit', '001'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_OWNER').id,
+      tenant_id: 'tenant_intelliflow_systems',
+      actor_role: 'PLATFORM_OWNER',
+      action: 'PLATFORM_SEED_INITIALIZED',
+      entity_type: 'platform',
+      entity_id: 'control-plane',
+      summary: 'Platform control plane seeded for IntelliFlow Systems and Evostel LLC',
+      details_json: JSON.stringify({ tenants: tenants.map((tenant) => tenant.id) }),
+      request_id: 'seed-platform',
+      created_at: '2026-06-13T08:00:00Z'
+    }
+  ];
+
+  const platformSupportSessions = [
+    {
+      id: pid('support_session', 'if-001'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_SUPPORT').id,
+      tenant_id: 'tenant_intelliflow_systems',
+      subject_user_id: 'tenant_intelliflow_systems_user_admin',
+      session_type: 'ADVISORY',
+      status: 'REQUESTED',
+      reason: 'Review production runtime readiness and release posture.',
+      summary: 'RC1 support observation session.',
+      evidence_required: 1,
+      opened_at: '2026-06-13T08:10:00Z',
+      closed_at: null,
+      created_at: '2026-06-13T08:10:00Z',
+      updated_at: '2026-06-13T08:10:00Z'
+    },
+    {
+      id: pid('support_session', 'if-002'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_SUPPORT').id,
+      tenant_id: 'tenant_northstar_logistics',
+      subject_user_id: 'tenant_northstar_logistics_user_admin',
+      session_type: 'AUDIT',
+      status: 'ACTIVE',
+      reason: 'Enterprise tenant posture review.',
+      summary: 'Northstar validation session currently active.',
+      evidence_required: 1,
+      opened_at: '2026-06-13T08:14:00Z',
+      closed_at: null,
+      created_at: '2026-06-13T08:14:00Z',
+      updated_at: '2026-06-13T08:14:00Z'
+    },
+    {
+      id: pid('support_session', 'ev-001'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_SUPPORT').id,
+      tenant_id: 'tenant_evostel',
+      subject_user_id: 'tenant_evostel_user_admin',
+      session_type: 'AUDIT',
+      status: 'DENIED',
+      reason: 'Restricted-tenant access verification.',
+      summary: 'Access denial verified for restricted modules.',
+      evidence_required: 1,
+      opened_at: '2026-06-13T08:12:00Z',
+      closed_at: '2026-06-13T08:18:00Z',
+      created_at: '2026-06-13T08:12:00Z',
+      updated_at: '2026-06-13T08:18:00Z'
+    },
+    {
+      id: pid('support_session', 'if-003'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_SUPPORT').id,
+      tenant_id: 'tenant_intelliflow_systems',
+      subject_user_id: 'tenant_intelliflow_systems_user_supervisor',
+      session_type: 'BILLING',
+      status: 'EXPIRED',
+      reason: 'Seat and renewal review completed.',
+      summary: 'Billing support session expired after review window.',
+      evidence_required: 0,
+      opened_at: '2026-06-12T14:00:00Z',
+      closed_at: '2026-06-12T15:00:00Z',
+      created_at: '2026-06-12T14:00:00Z',
+      updated_at: '2026-06-12T15:00:00Z'
+    },
+    {
+      id: pid('support_session', 'if-004'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_SUPPORT').id,
+      tenant_id: 'tenant_northstar_logistics',
+      subject_user_id: 'tenant_northstar_logistics_user_supervisor',
+      session_type: 'SECURITY',
+      status: 'REVOKED',
+      reason: 'Revoked after cross-tenant verification completed.',
+      summary: 'Security support session was revoked once validation ended.',
+      evidence_required: 1,
+      opened_at: '2026-06-12T11:00:00Z',
+      closed_at: '2026-06-12T11:30:00Z',
+      created_at: '2026-06-12T11:00:00Z',
+      updated_at: '2026-06-12T11:30:00Z'
+    }
+  ];
+
+  const platformBillingEvents = [
+    {
+      id: pid('billing', '001'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_BILLING').id,
+      tenant_id: 'tenant_intelliflow_systems',
+      event_type: 'SUBSCRIPTION_REVIEW',
+      status: 'RECORDED',
+      amount_cents: 480000,
+      currency: 'USD',
+      summary: 'Enterprise subscription review completed.',
+      details_json: JSON.stringify({ plan: 'Enterprise Control Plane', seat_limit: 24 }),
+      created_at: '2026-06-13T08:09:00Z',
+      updated_at: '2026-06-13T08:09:00Z'
+    },
+    {
+      id: pid('billing', '002'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_BILLING').id,
+      tenant_id: 'tenant_northstar_logistics',
+      event_type: 'PLAN_REVIEW',
+      status: 'RECORDED',
+      amount_cents: 264000,
+      currency: 'USD',
+      summary: 'Northstar Logistics plan posture reviewed.',
+      details_json: JSON.stringify({ plan: 'Enterprise Logistics Plan', seat_limit: 18 }),
+      created_at: '2026-06-13T08:09:30Z',
+      updated_at: '2026-06-13T08:09:30Z'
+    }
+  ];
+
+  const platformSecurityEvents = [
+    {
+      id: pid('security', '001'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_SECURITY').id,
+      tenant_id: 'tenant_evostel',
+      event_type: 'RESTRICTED_MODULE_DENIAL',
+      severity: 'INFO',
+      status: 'RECORDED',
+      summary: 'Restricted tenant denied access to procurement and finance modules.',
+      details_json: JSON.stringify({ deniedModules: ['Procurement & Purchasing', 'Finance Export Hub'] }),
+      created_at: '2026-06-13T08:11:00Z',
+      updated_at: '2026-06-13T08:11:00Z'
+    },
+    {
+      id: pid('security', '002'),
+      platform_user_id: platformUsers.find((user) => user.role_key === 'PLATFORM_SECURITY').id,
+      tenant_id: 'tenant_northstar_logistics',
+      event_type: 'TENANT_POSTURE_REVIEW',
+      severity: 'INFO',
+      status: 'RECORDED',
+      summary: 'Northstar Logistics posture verified for production-style platform control.',
+      details_json: JSON.stringify({ auth: 'CONFIGURED', storage: 'CONFIGURED', integration: 'HEALTHY' }),
+      created_at: '2026-06-13T08:13:00Z',
+      updated_at: '2026-06-13T08:13:00Z'
+    }
+  ];
+
+  return {
+    platformUsers,
+    platformUserRoles,
+    tenantPlans,
+    tenantSubscriptions,
+    tenantFeatureEntitlements,
+    tenantUsageSnapshots,
+    tenantHealthSnapshots,
+    platformAuditEvents,
+    platformSupportSessions,
+    platformBillingEvents,
+    platformSecurityEvents
+  };
+}
+
 const seeded = tenants.map(buildTenantData);
+const platformSeed = buildPlatformSeedData();
 
 export const seedData = {
   tenants,
@@ -2866,5 +3376,16 @@ export const seedData = {
   aiGovernanceLogs: seeded.flatMap((tenant) => tenant.aiGovernanceLogs),
   backupRecords: seeded.flatMap((tenant) => tenant.backupRecords),
   restoreTestRecords: seeded.flatMap((tenant) => tenant.restoreTestRecords),
-  ssoConfigurations: seeded.flatMap((tenant) => tenant.ssoConfigurations)
+  ssoConfigurations: seeded.flatMap((tenant) => tenant.ssoConfigurations),
+  platformUsers: platformSeed.platformUsers,
+  platformUserRoles: platformSeed.platformUserRoles,
+  tenantPlans: platformSeed.tenantPlans,
+  tenantSubscriptions: platformSeed.tenantSubscriptions,
+  tenantFeatureEntitlements: platformSeed.tenantFeatureEntitlements,
+  tenantUsageSnapshots: platformSeed.tenantUsageSnapshots,
+  tenantHealthSnapshots: platformSeed.tenantHealthSnapshots,
+  platformAuditEvents: platformSeed.platformAuditEvents,
+  platformSupportSessions: platformSeed.platformSupportSessions,
+  platformBillingEvents: platformSeed.platformBillingEvents,
+  platformSecurityEvents: platformSeed.platformSecurityEvents
 };

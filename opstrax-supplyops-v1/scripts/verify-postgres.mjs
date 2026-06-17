@@ -6,8 +6,8 @@
  */
 
 process.env.NODE_ENV ||= 'production';
-process.env.OPSTRAX_DB_PROVIDER ||= 'postgres';
-process.env.OPSTRAX_EVIDENCE_STORAGE ||= 's3';
+process.env.DATABASE_PROVIDER ||= process.env.OPSTRAX_DB_PROVIDER || 'postgres';
+process.env.EVIDENCE_STORAGE_PROVIDER ||= process.env.OPSTRAX_EVIDENCE_STORAGE || 's3';
 
 const { getDatabaseRuntimeInfo, selectOne } = await import('../src/db.js');
 const {
@@ -49,7 +49,7 @@ try {
   assert(runtime.provider === 'postgres', `Expected postgres provider, got ${runtime.provider}`);
   const versionRow = selectOne('SELECT COALESCE(MAX(version),0) AS version FROM schema_migrations');
   const version = Number(versionRow?.version || runtime.currentVersion || 0);
-  assert(version === 20, `Expected migration version 20, got ${version}`);
+  assert(version === 23, `Expected migration version 23, got ${version}`);
 
   const seeded = await seedIfNeeded();
   const adminCtx = buildContext('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
@@ -75,7 +75,7 @@ try {
     assert(denied, 'Cross-tenant vendor access should be denied');
   }
 
-  process.stdout.write(`[verify-postgres] OK provider=postgres version=20 seed=${seeded ? 'applied' : 'present'} procurement=${procurement.summary.vendors}\n`);
+  process.stdout.write(`[verify-postgres] OK provider=postgres version=23 seed=${seeded ? 'applied' : 'present'} procurement=${procurement.summary.vendors}\n`);
   process.exit(0);
 } catch (error) {
   process.stderr.write(`[verify-postgres] ERROR ${error.message}\n`);

@@ -5,8 +5,8 @@
  */
 
 process.env.NODE_ENV ||= 'production';
-process.env.OPSTRAX_DB_PROVIDER ||= 'postgres';
-process.env.OPSTRAX_EVIDENCE_STORAGE ||= 's3';
+process.env.DATABASE_PROVIDER ||= process.env.OPSTRAX_DB_PROVIDER || 'postgres';
+process.env.EVIDENCE_STORAGE_PROVIDER ||= process.env.OPSTRAX_EVIDENCE_STORAGE || 's3';
 
 import crypto from 'node:crypto';
 
@@ -77,7 +77,12 @@ try {
   }
   assert(crossTenantDenied, 'Cross-tenant evidence access must be denied');
 
-  const expiredToken = signToken('tenant_intelliflow_systems', upload.evidence.id, new Date(Date.now() - 60_000).toISOString(), process.env.OPSTRAX_EVIDENCE_SIGNING_SECRET || '');
+  const expiredToken = signToken(
+    'tenant_intelliflow_systems',
+    upload.evidence.id,
+    new Date(Date.now() - 60_000).toISOString(),
+    process.env.EVIDENCE_SIGNING_SECRET || process.env.OPSTRAX_EVIDENCE_SIGNING_SECRET || ''
+  );
   let expiredDenied = false;
   try {
     downloadEvidenceContent(adminCtx, upload.evidence.id, expiredToken);
@@ -97,7 +102,7 @@ try {
   const auditAfter = Number(selectOne("SELECT COUNT(*) AS count FROM audit_logs WHERE tenant_id = ? AND action = 'VIEW_EVIDENCE_BINARY'", ['tenant_intelliflow_systems'])?.count || 0);
   assert(auditAfter > auditBefore, 'Evidence binary access should be audited');
 
-  process.stdout.write(`[verify-storage] OK provider=s3 bucket=${probe.bucket || process.env.OPSTRAX_EVIDENCE_BUCKET || ''} auditDelta=${auditAfter - auditBefore}\n`);
+  process.stdout.write(`[verify-storage] OK provider=s3 bucket=${probe.bucket || process.env.S3_BUCKET || process.env.OPSTRAX_EVIDENCE_BUCKET || ''} auditDelta=${auditAfter - auditBefore}\n`);
   process.exit(0);
 } catch (error) {
   process.stderr.write(`[verify-storage] ERROR ${error.message}\n`);

@@ -37,7 +37,10 @@ const migrations = [
   { version: 17, file: '017_procure_to_pay_invoice_hardening.sql' },
   { version: 18, file: '018_procurement_governance_hardening.sql' },
   { version: 19, file: '019_compliance_trust_center.sql' },
-  { version: 20, file: '020_production_foundation.sql' }
+  { version: 20, file: '020_production_foundation.sql' },
+  { version: 21, file: '021_platform_admin_control_plane.sql' },
+  { version: 22, file: '022_platform_admin_control_plane_refresh.sql' },
+  { version: 23, file: '023_platform_oidc_cutover.sql' }
 ];
 
 mkdirSync(dataDir, { recursive: true });
@@ -48,9 +51,9 @@ function failFast(message) {
 function resolveProviderMode() {
   if (isProduction && requestedDbProvider && requestedDbProvider !== 'postgres') {
     if (requestedDbProvider === 'sqlite') {
-      failFast('SQLite is not permitted in production. Set OPSTRAX_DB_PROVIDER=postgres and DATABASE_URL.');
+      failFast('SQLite is not permitted in production. Set DATABASE_PROVIDER=postgres and DATABASE_URL.');
     }
-    failFast(`Unsupported OPSTRAX_DB_PROVIDER="${requestedDbProvider}" in production. Set OPSTRAX_DB_PROVIDER=postgres and DATABASE_URL.`);
+    failFast(`Unsupported DATABASE_PROVIDER="${requestedDbProvider}" in production. Set DATABASE_PROVIDER=postgres and DATABASE_URL.`);
   }
   if (dbProviderMode === 'sqlite') return 'sqlite';
   if (dbProviderMode === 'postgres') return 'postgres';
@@ -66,7 +69,7 @@ function makeSqliteDb() {
 
 function makePostgresDb() {
   if (!databaseUrl) {
-    failFast('DATABASE_URL is required when OPSTRAX_DB_PROVIDER=postgres or NODE_ENV=production.');
+    failFast('DATABASE_URL is required when DATABASE_PROVIDER=postgres or NODE_ENV=production.');
   }
   const bridge = createSynchronousWorkerBridge(new URL('./postgres-db-worker.js', import.meta.url), {
     connectionString: databaseUrl,
@@ -214,6 +217,17 @@ function seedIfNeeded() {
     insertRows('backup_records', seedData.backupRecords);
     insertRows('restore_test_records', seedData.restoreTestRecords);
     insertRows('sso_configurations', seedData.ssoConfigurations);
+    insertRows('platform_users', seedData.platformUsers);
+    insertRows('platform_user_roles', seedData.platformUserRoles);
+    insertRows('tenant_plans', seedData.tenantPlans);
+    insertRows('tenant_subscriptions', seedData.tenantSubscriptions);
+    insertRows('tenant_feature_entitlements', seedData.tenantFeatureEntitlements);
+    insertRows('tenant_usage_snapshots', seedData.tenantUsageSnapshots);
+    insertRows('tenant_health_snapshots', seedData.tenantHealthSnapshots);
+    insertRows('platform_audit_events', seedData.platformAuditEvents);
+    insertRows('platform_support_sessions', seedData.platformSupportSessions);
+    insertRows('platform_billing_events', seedData.platformBillingEvents);
+    insertRows('platform_security_events', seedData.platformSecurityEvents);
     db.exec('COMMIT;');
   } catch (error) {
     db.exec('ROLLBACK;');
@@ -364,6 +378,39 @@ function seedComplianceTrustCenter() {
   }
   if (tableCount('ai_governance_logs') === 0) {
     insertRows('ai_governance_logs', seedData.aiGovernanceLogs);
+  }
+  if (tableCount('platform_users') === 0) {
+    insertRows('platform_users', seedData.platformUsers);
+  }
+  if (tableCount('platform_user_roles') === 0) {
+    insertRows('platform_user_roles', seedData.platformUserRoles);
+  }
+  if (tableCount('tenant_plans') === 0) {
+    insertRows('tenant_plans', seedData.tenantPlans);
+  }
+  if (tableCount('tenant_subscriptions') === 0) {
+    insertRows('tenant_subscriptions', seedData.tenantSubscriptions);
+  }
+  if (tableCount('tenant_feature_entitlements') === 0) {
+    insertRows('tenant_feature_entitlements', seedData.tenantFeatureEntitlements);
+  }
+  if (tableCount('tenant_usage_snapshots') === 0) {
+    insertRows('tenant_usage_snapshots', seedData.tenantUsageSnapshots);
+  }
+  if (tableCount('tenant_health_snapshots') === 0) {
+    insertRows('tenant_health_snapshots', seedData.tenantHealthSnapshots);
+  }
+  if (tableCount('platform_audit_events') === 0) {
+    insertRows('platform_audit_events', seedData.platformAuditEvents);
+  }
+  if (tableCount('platform_support_sessions') === 0) {
+    insertRows('platform_support_sessions', seedData.platformSupportSessions);
+  }
+  if (tableCount('platform_billing_events') === 0) {
+    insertRows('platform_billing_events', seedData.platformBillingEvents);
+  }
+  if (tableCount('platform_security_events') === 0) {
+    insertRows('platform_security_events', seedData.platformSecurityEvents);
   }
 }
 

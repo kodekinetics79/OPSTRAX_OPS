@@ -14,15 +14,16 @@ function storageMode() {
 }
 
 function storageConfig() {
+  const runtime = getEvidenceStorageRuntimeSelection();
   return {
-    bucket: String(process.env.OPSTRAX_EVIDENCE_BUCKET || '').trim(),
-    region: String(process.env.OPSTRAX_EVIDENCE_REGION || process.env.AWS_REGION || '').trim(),
-    endpoint: String(process.env.OPSTRAX_EVIDENCE_ENDPOINT || '').trim(),
-    accessKeyId: String(process.env.OPSTRAX_EVIDENCE_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID || '').trim(),
-    secretAccessKey: String(process.env.OPSTRAX_EVIDENCE_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY || '').trim(),
-    sessionToken: String(process.env.OPSTRAX_EVIDENCE_SESSION_TOKEN || process.env.AWS_SESSION_TOKEN || '').trim(),
-    forcePathStyle: String(process.env.OPSTRAX_EVIDENCE_FORCE_PATH_STYLE || '').trim().toLowerCase() === 'true',
-    signingSecret: getEvidenceStorageRuntimeSelection().signingSecret
+    bucket: runtime.bucket,
+    region: runtime.region,
+    endpoint: runtime.endpoint,
+    accessKeyId: runtime.accessKeyId,
+    secretAccessKey: runtime.secretAccessKey,
+    sessionToken: runtime.sessionToken,
+    forcePathStyle: String(runtime.forcePathStyle || '').toLowerCase() === 'true',
+    signingSecret: runtime.signingSecret
   };
 }
 

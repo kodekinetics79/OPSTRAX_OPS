@@ -20,6 +20,8 @@ The product is intentionally narrower than a broad ERP suite, but deeper in the 
 
 The design principle is simple: the frontend presents, but the backend decides. Every critical action is permission-checked, tenant-scoped, facility-scoped, department-scoped where applicable, and audit-logged. Restricted tenants see a smaller module set, and the server enforces the same denial at the API level.
 
+OpsTrax also includes a separate platform admin control plane at `/platform` for SaaS-owner operations such as tenant plans, entitlements, support sessions, billing posture, security posture, and platform audit review. It uses a separate session and does not impersonate tenant users.
+
 ## 10–12 Minute Demo Script
 
 ### 1. Login as IntelliFlow admin
@@ -119,6 +121,13 @@ The design principle is simple: the frontend presents, but the backend decides. 
 - **Say:** “This tenant is intentionally restricted. Sensitive modules do not appear, and direct API access is denied server-side.”
 - **Business value:** proves that UI hiding is backed by backend enforcement.
 - **RFP scoring point:** tenant isolation, least privilege, governed access control.
+
+### 15. Show platform admin control plane
+
+- **Click:** open `http://localhost:9899/platform` and enter the platform workspace
+- **Say:** “This is the SaaS-owner control plane. It is separate from tenant operations and uses its own authorization surface.”
+- **Business value:** demonstrates how OpsTrax can be run as a multi-tenant SaaS product, not just a tenant workspace.
+- **RFP scoring point:** platform isolation, SaaS administration, support governance, tenant-plan management.
 
 ## Demo Value Summary
 

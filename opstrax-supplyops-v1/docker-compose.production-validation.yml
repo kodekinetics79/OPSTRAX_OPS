@@ -49,16 +49,32 @@ services:
       - ./:/workspace
     environment:
       NODE_ENV: production
-      OPSTRAX_DB_PROVIDER: postgres
+      DATABASE_PROVIDER: postgres
       DATABASE_URL: postgresql://opstrax:opstrax@postgres:5432/opstrax
-      OPSTRAX_EVIDENCE_STORAGE: s3
-      OPSTRAX_EVIDENCE_BUCKET: opstrax-evidence
-      OPSTRAX_EVIDENCE_REGION: us-east-1
-      OPSTRAX_EVIDENCE_ENDPOINT: http://minio:9000
-      OPSTRAX_EVIDENCE_FORCE_PATH_STYLE: "true"
-      OPSTRAX_EVIDENCE_ACCESS_KEY_ID: opstrax
-      OPSTRAX_EVIDENCE_SECRET_ACCESS_KEY: opstrax-secret
-      OPSTRAX_EVIDENCE_SIGNING_SECRET: opstrax-validation-signing-secret
+      EVIDENCE_STORAGE_PROVIDER: s3
+      S3_BUCKET: opstrax-evidence
+      S3_REGION: us-east-1
+      S3_ENDPOINT: http://minio:9000
+      S3_FORCE_PATH_STYLE: "true"
+      S3_ACCESS_KEY_ID: opstrax
+      S3_SECRET_ACCESS_KEY: opstrax-secret
+      EVIDENCE_SIGNING_SECRET: opstrax-validation-signing-secret
+      AUTH_MODE: oidc
+      SESSION_SECRET: opstrax-tenant-session-secret
+      COOKIE_SECURE: "true"
+      COOKIE_SAME_SITE: lax
+      OIDC_ISSUER: https://tenant-idp.example.com
+      OIDC_CLIENT_ID: opstrax-tenant-client
+      OIDC_CLIENT_SECRET: opstrax-tenant-secret
+      OIDC_REDIRECT_URI: http://localhost:9900/auth/oidc/callback
+      OIDC_LOGOUT_REDIRECT_URI: http://localhost:9900/auth/login
+      PLATFORM_AUTH_MODE: oidc
+      PLATFORM_SESSION_SECRET: opstrax-platform-session-secret
+      PLATFORM_OIDC_ISSUER: https://platform-idp.example.com
+      PLATFORM_OIDC_CLIENT_ID: opstrax-platform-client
+      PLATFORM_OIDC_CLIENT_SECRET: opstrax-platform-secret
+      PLATFORM_OIDC_REDIRECT_URI: http://localhost:9900/platform/auth/oidc/callback
+      PLATFORM_OIDC_LOGOUT_REDIRECT_URI: http://localhost:9900/platform/login
       OPSTRAX_VALIDATE_SEED: "1"
     depends_on:
       postgres:
@@ -75,18 +91,32 @@ services:
     environment:
       NODE_ENV: production
       PORT: 9900
-      OPSTRAX_DB_PROVIDER: postgres
+      DATABASE_PROVIDER: postgres
       DATABASE_URL: postgresql://opstrax:opstrax@postgres:5432/opstrax
-      OPSTRAX_EVIDENCE_STORAGE: s3
-      OPSTRAX_EVIDENCE_BUCKET: opstrax-evidence
-      OPSTRAX_EVIDENCE_REGION: us-east-1
-      OPSTRAX_EVIDENCE_ENDPOINT: http://minio:9000
-      OPSTRAX_EVIDENCE_FORCE_PATH_STYLE: "true"
-      OPSTRAX_EVIDENCE_ACCESS_KEY_ID: opstrax
-      OPSTRAX_EVIDENCE_SECRET_ACCESS_KEY: opstrax-secret
-      OPSTRAX_EVIDENCE_SIGNING_SECRET: opstrax-validation-signing-secret
-      OPSTRAX_AUTH_MODE: locked
-      OPSTRAX_ALLOW_DEV_CONTEXT: "0"
+      EVIDENCE_STORAGE_PROVIDER: s3
+      S3_BUCKET: opstrax-evidence
+      S3_REGION: us-east-1
+      S3_ENDPOINT: http://minio:9000
+      S3_FORCE_PATH_STYLE: "true"
+      S3_ACCESS_KEY_ID: opstrax
+      S3_SECRET_ACCESS_KEY: opstrax-secret
+      EVIDENCE_SIGNING_SECRET: opstrax-validation-signing-secret
+      AUTH_MODE: oidc
+      SESSION_SECRET: opstrax-tenant-session-secret
+      COOKIE_SECURE: "true"
+      COOKIE_SAME_SITE: lax
+      OIDC_ISSUER: https://tenant-idp.example.com
+      OIDC_CLIENT_ID: opstrax-tenant-client
+      OIDC_CLIENT_SECRET: opstrax-tenant-secret
+      OIDC_REDIRECT_URI: http://localhost:9900/auth/oidc/callback
+      OIDC_LOGOUT_REDIRECT_URI: http://localhost:9900/auth/login
+      PLATFORM_AUTH_MODE: oidc
+      PLATFORM_SESSION_SECRET: opstrax-platform-session-secret
+      PLATFORM_OIDC_ISSUER: https://platform-idp.example.com
+      PLATFORM_OIDC_CLIENT_ID: opstrax-platform-client
+      PLATFORM_OIDC_CLIENT_SECRET: opstrax-platform-secret
+      PLATFORM_OIDC_REDIRECT_URI: http://localhost:9900/platform/auth/oidc/callback
+      PLATFORM_OIDC_LOGOUT_REDIRECT_URI: http://localhost:9900/platform/login
       OPSTRAX_WORKER_TIMEOUT_MS: "30000"
     ports:
       - "9900:9900"

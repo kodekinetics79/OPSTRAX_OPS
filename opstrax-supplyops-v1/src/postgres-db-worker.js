@@ -11,11 +11,12 @@ let client = null;
 let currentVersion = 0;
 let inTransaction = false;
 
-function withTextNow(sql) {
-  return sql
-    .replace(/datetime\('now'\)/gi, 'CURRENT_TIMESTAMP::text')
-    .replace(/datetime\('now',\s*'utc'\)/gi, 'CURRENT_TIMESTAMP::text')
-    .replace(/datetime\('now'\s*,\s*'utc'\)/gi, 'CURRENT_TIMESTAMP::text');
+function replaceSqliteDatetimeNow(sql) {
+  return sql.replace(/datetime\(\s*'now'\s*(?:,\s*'([^']+)')?\s*\)/gi, (_match, modifier) => {
+    const normalizedModifier = String(modifier || '').trim().toLowerCase();
+    const intervalClause = normalizedModifier && normalizedModifier !== 'utc' ? ` + INTERVAL '${normalizedModifier.replace(/'/g, "''")}'` : '';
+    return `to_char((CURRENT_TIMESTAMP AT TIME ZONE 'UTC'${intervalClause}), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+  });
 }
 
 function replacePositionalParams(sql) {
@@ -27,11 +28,12 @@ function normalizeSql(sql) {
   let normalized = String(sql || '').trim();
   normalized = normalized.replace(/^\s*PRAGMA foreign_keys = ON\s*;?\s*$/gim, '');
   normalized = normalized.replace(/\bBEGIN IMMEDIATE;\b/gi, 'BEGIN;');
-  normalized = withTextNow(normalized);
+  normalized = replaceSqliteDatetimeNow(normalized);
   normalized = normalized.replace(/INSERT OR IGNORE INTO\s+/gi, 'INSERT INTO ');
   normalized = normalized.replace(/INSERT OR REPLACE INTO\s+/gi, 'INSERT INTO ');
   normalized = normalized.replace(/PRAGMA user_version\s*=\s*\d+;?/gi, '');
   normalized = normalized.replace(/INSERT INTO\s+schema_migrations\s*\(\s*version\s*\)\s*VALUES\s*\(\s*\$?1?\s*\)/gi, 'INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT (version) DO NOTHING');
+  normalized = normalized.replace(/\bjson_object\s*\(/gi, 'json_build_object(');
   return normalized;
 }
 

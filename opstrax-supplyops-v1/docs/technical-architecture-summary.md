@@ -6,6 +6,7 @@
 - **Frontend:** server-rendered shell and module views
 - **Demo database:** SQLite, seeded deterministically
 - **Production database path:** Postgres migration path is documented and intended for production deployments
+- **Platform admin surface:** separate `/platform` control plane with its own session cookie, auth bootstrap, and platform audit trail
 
 ## Data Model
 
@@ -27,6 +28,8 @@
 - role-based and capability-based checks
 - facility and department scoping enforced in backend queries and service logic
 - restricted tenant access is denied at the API layer
+- platform admin permissions are separate from tenant user permissions
+- tenant cookies do not authenticate platform APIs, and platform cookies do not authenticate tenant APIs
 
 ## Audit / Event Model
 
