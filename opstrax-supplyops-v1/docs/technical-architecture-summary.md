@@ -44,6 +44,16 @@
 - evidence hashes, stored-file metadata, and signed access URLs are part of the compliance posture
 - production binary storage is backed by an object-storage abstraction; local filesystem remains the demo/local path
 
+## Reporting Model
+
+- report definitions are backend-owned: 13 tenant reports + 6 platform reports
+- report generation is synchronous and tenant-isolated (all queries include `WHERE tenant_id = ?` binding)
+- CSV export uses `safeCsvCell()` for formula-injection protection (leading `=`, `+`, `-`, `@` prefixed with `'`)
+- PDF export uses stdlib-only PDF generation (no external dependencies); binary buffers start with `%PDF`
+- every report run and download is audit-logged; denied report access is logged as `DENIED_ROUTE_ACCESS`
+- report run states: `QUEUED` → `RUNNING` → `COMPLETED` / `FAILED` / `CANCELLED`
+- platform reports are gated to platform-role users and do not expose tenant operational detail
+
 ## Integration Model
 
 - integration jobs are tracked in the product

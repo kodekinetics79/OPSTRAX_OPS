@@ -268,7 +268,7 @@ X-Dev-User-Id: tenant_intelliflow_systems_user_admin
 | AI Operations | NOT_CONFIGURED banner | SYSTEM_GENERATED labels |
 | Compliance Center | Control cards | Coverage % displayed |
 | Worker-Safe Mode | Restricted queue (worker user) | No finance/admin visible |
-| Reports | Report catalog | 12 tenant reports + 6 platform reports; CSV and PDF exports are tenant-scoped and audited |
+| Reports | Report catalog | 13 tenant reports + 6 platform reports; CSV and real binary PDF exports are tenant-scoped and audit-logged |
 | Admin | Users + devices | Role assignment visible |
 
 ---
@@ -295,7 +295,7 @@ X-Dev-User-Id: tenant_intelliflow_systems_user_admin
 | ERP Dispatch | Export and dispatch posture is real, but live ERP acknowledgment is not claimed unless a connector is configured. |
 | Email / Notifications | Not implemented. Events are audit-logged. |
 | Rate Limiting | Reverse proxy required for production. |
-| PDF Export / CSV Download | Reports catalog is real; PDF/CSV export delivery is implemented and audited. |
+| PDF Export / CSV Download | Reports catalog is real. Binary PDF (`%PDF` magic bytes, stdlib-only) and CSV (formula-injection safe) export delivery is implemented, audited, and route-tested in browser smoke. |
 
 ---
 
@@ -363,3 +363,4 @@ If you need a conservative rollback, restore the prior `data/opstrax.production.
 - “Command Center gives an executive summary across requests, stock, procurement, receiving, evidence, audit, exports, device posture, and AI governance.”
 - “Procure-to-Pay Intelligence shows invoice extraction, matching, exception handling, and export posture without faking a live ERP handoff.”
 - “The restricted Evostel tenant proves the same controls hold when the workspace is intentionally constrained.”
+- “Reports Center is backend-owned: the frontend submits the report type and format; the backend enforces tenant scope, RBAC, and feature entitlement; generates rows; and delivers the export. No client-side CSV or PDF fabrication.”

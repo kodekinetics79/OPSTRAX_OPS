@@ -124,3 +124,20 @@ Seeded managed workspaces:
 - support sessions are tracked and auditable
 - billing posture and security posture are separated from tenant workflows
 - no platform action is allowed to execute without backend permission checks
+
+## Platform Reporting
+
+Platform reports are available at `/api/platform/reports/*` and are gated to platform-authenticated users only.
+
+| Report | Capability Required |
+| --- | --- |
+| Tenant Subscription Summary | VIEW_PLATFORM_SUMMARY |
+| Tenant Module Entitlement Summary | VIEW_PLATFORM_TENANT_MODULES |
+| Tenant Usage Summary | VIEW_PLATFORM_TENANT_USAGE |
+| Support Session Summary | VIEW_PLATFORM_SUPPORT_SESSIONS |
+| Platform Audit Summary | VIEW_PLATFORM_AUDIT_EVENTS |
+| Security Event Summary | VIEW_PLATFORM_SECURITY_EVENTS |
+
+Platform AUDITOR role can read and list all platform report definitions and runs. Platform OWNER and ADMIN roles can generate new platform report runs. Tenant-user cookies cannot call platform report APIs (403).
+
+Every platform report run and download is logged in `platform_audit_events`.

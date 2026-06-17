@@ -228,6 +228,7 @@ async function checkModulePages(page, port) {
     await page.screenshot({ path: join(screenshotDir, `${slug(mod.navText)}.png`), fullPage: false });
   }
 
+  let reportRunId = null;
   await check('Reports center can run and open a governed report', async () => {
     const runButton = page.locator('button[data-action="run-report"]').first();
     if ((await runButton.count()) === 0) throw new Error('Report run button missing');
@@ -235,6 +236,7 @@ async function checkModulePages(page, port) {
     await page.waitForFunction(() => document.querySelectorAll('tr[data-report-run]').length > 0, null, { timeout: 5000 });
     const openButton = page.locator('tr[data-report-run] button[data-drawer-focus="report-run"]').first();
     if ((await openButton.count()) === 0) throw new Error('Report run open button missing');
+    reportRunId = await openButton.evaluate((el) => el.closest('tr[data-report-run]')?.getAttribute('data-report-run') || null);
     await openButton.evaluate((el) => el.click());
     await page.waitForSelector('.drawer-shell', { timeout: 5000 });
     await page.locator('button[data-drawer-tab="Actions"]').first().evaluate((el) => el.click());
@@ -245,6 +247,35 @@ async function checkModulePages(page, port) {
     await page.locator('button[data-drawer-tab="Audit trail"]').first().evaluate((el) => el.click());
     const auditText = await page.textContent('.drawer-shell');
     if (!auditText.includes('Audit trail')) throw new Error('Missing report audit trail section');
+  });
+
+  await check('Reports CSV export route returns text/csv with correct content', async () => {
+    if (!reportRunId) throw new Error('No report run ID captured from previous step');
+    const cookies = await page.context().cookies();
+    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+    const res = await fetch(`http://127.0.0.1:${port}/api/reports/runs/${reportRunId}/export.csv`, {
+      headers: { Cookie: cookieHeader }
+    });
+    if (res.status !== 200) throw new Error(`CSV export returned ${res.status}`);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('text/csv')) throw new Error(`CSV export content-type wrong: ${contentType}`);
+    const text = await res.text();
+    if (!text || text.length === 0) throw new Error('CSV export body is empty');
+  });
+
+  await check('Reports PDF export route returns application/pdf binary', async () => {
+    if (!reportRunId) throw new Error('No report run ID captured from previous step');
+    const cookies = await page.context().cookies();
+    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+    const res = await fetch(`http://127.0.0.1:${port}/api/reports/runs/${reportRunId}/export.pdf`, {
+      headers: { Cookie: cookieHeader }
+    });
+    if (res.status !== 200) throw new Error(`PDF export returned ${res.status}`);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/pdf')) throw new Error(`PDF export content-type wrong: ${contentType}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length === 0) throw new Error('PDF export body is empty');
+    if (buf.slice(0, 4).toString('ascii') !== '%PDF') throw new Error('PDF export does not start with %PDF magic bytes');
   });
 
   await page.waitForTimeout(250);

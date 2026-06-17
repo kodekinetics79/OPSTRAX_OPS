@@ -20,7 +20,8 @@
 | Contract control | Complete | Contract Repository | Active/expired contracts, renewal alerts, non-contract spend detection | 7 | `INSUFFICIENT_CONTRACT_DATA` is shown when contract evidence is missing |
 | Budget control | Complete | Budget Control | Department and cost-center budgets, reservations, consumption, and over-budget exception handling | 7 | Budget enforcement is server-side and audit logged |
 | Procure-to-pay intelligence | Complete | Invoice Intelligence | Extraction panel, matching panel, exception queue, approval trail, local export posture | 8 | Live OCR/provider extraction remains `NOT_CONFIGURED` in RC1 |
-| Finance exports | Complete | Finance Export Hub | Validation-first export posture | 10 | CSV/PDF export delivery remains roadmap |
+| Finance exports | Complete | Finance Export Hub | Validation-first export posture | 10 | Finance export readiness report included in Reports Center |
+| Enterprise reporting | Complete | Reports Center | 13 tenant + 6 platform reports; real CSV and binary PDF exports; per-run audit trail; tenant-scoped rows | 14 | Formula-injection protected CSV; `%PDF`-magic-byte binary PDF; no client-side fabrication |
 | ERP integration foundation | Partial | Integration Center | Job tracking and connector posture | 10 | Real connector not configured in RC1 |
 | Compliance readiness | Complete | Compliance Center | Controls, posture, and workflow-linked evidence | 9 | Built into workflows, not a static page |
 | AI governance | Complete | AI Operations | Read-only, governed summaries with source records | 12 | AI execution intentionally disabled in RC1 |

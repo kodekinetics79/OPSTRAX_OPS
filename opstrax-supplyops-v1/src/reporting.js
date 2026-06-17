@@ -647,7 +647,7 @@ function reportDataForTenant(definition, context, filters = {}) {
     }
     case 'finance_export_readiness': {
       const rows = selectAll(
-        `SELECT batch_no, status, record_count, open_error_count, format, generated_at
+        `SELECT batch_no, status, record_count, COALESCE(validation_error_count, 0) AS open_error_count, format, generated_at
          FROM export_batches
          WHERE tenant_id = ?
          ORDER BY created_at DESC, id DESC
@@ -699,7 +699,7 @@ function reportDataForTenant(definition, context, filters = {}) {
     }
     case 'device_trust_posture': {
       const rows = selectAll(
-        `SELECT device_code, name, COALESCE(f.name, '') AS facility_name, device_type, trust_state, last_seen_at
+        `SELECT d.device_code, d.name, COALESCE(f.name, '') AS facility_name, d.device_type, d.trust_state, d.last_seen_at
          FROM devices d
          LEFT JOIN facilities f ON f.id = d.facility_id
          WHERE d.tenant_id = ?

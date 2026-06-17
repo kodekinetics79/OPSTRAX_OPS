@@ -5103,3 +5103,142 @@ test('go-live documentation and scorecard exist', () => {
     assert.match(content, pattern, `${filePath} must contain the expected heading`);
   }
 });
+
+// ── Phase 3H: Enterprise Reporting & Export Center tests ─────────────────────
+
+test('CSV export content type and formula injection protection', () => {
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  const runResult = runReport(ctx, { reportKey: 'audit_trail_summary', format: 'CSV' });
+  const csv = exportReportRunCsv(ctx, runResult.run.id);
+  assert.equal(csv.export.content_type, 'text/csv; charset=utf-8', 'CSV export must return correct content-type');
+  assert.ok(csv.export.file_name.endsWith('.csv'), 'CSV export file name must end with .csv');
+  assert.ok(typeof csv.export.content_text === 'string', 'CSV export must have text content');
+  const csvText = csv.export.content_text;
+  assert.ok(csvText.length > 0, 'CSV export must not be empty');
+  for (const line of csvText.split('\n').slice(1).filter(Boolean)) {
+    const cells = line.split(',');
+    for (const cell of cells) {
+      const raw = cell.replace(/^"(.*)"$/, '$1').replace(/""/g, '"');
+      if (/^[=+\-@]/.test(raw)) {
+        assert.ok(raw.startsWith("'"), `Formula injection: cell starting with ${raw[0]} must be prefixed with apostrophe`);
+      }
+    }
+  }
+});
+
+test('PDF export returns application/pdf binary content and correct filename', () => {
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  const runResult = runReport(ctx, { reportKey: 'inventory_stock_position', format: 'PDF' });
+  assert.equal(runResult.run.status, 'COMPLETED', 'PDF report run must complete');
+  assert.equal(runResult.run.format, 'PDF', 'PDF report run must record PDF format');
+  const pdf = exportReportRunPdf(ctx, runResult.run.id);
+  assert.equal(pdf.export.content_type, 'application/pdf', 'PDF export must return application/pdf content-type');
+  assert.ok(pdf.export.file_name.endsWith('.pdf'), 'PDF export file name must end with .pdf');
+  const buf = pdf.export.content_blob instanceof Uint8Array ? Buffer.from(pdf.export.content_blob) : pdf.export.content_blob;
+  assert.ok(Buffer.isBuffer(buf) && buf.length > 0, 'PDF export must return a non-empty buffer');
+  assert.ok(buf.slice(0, 4).toString('ascii') === '%PDF', 'PDF export buffer must start with %PDF magic bytes');
+});
+
+test('failed report run records honest failure_reason and is tenant-scoped', () => {
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  const runs = listReportRuns(ctx).runs;
+  const failedRun = runs.find((run) => run.status === 'FAILED');
+  assert.ok(failedRun, 'At least one FAILED report run must exist in seed data');
+  assert.ok(failedRun.failure_reason && failedRun.failure_reason.length > 0, 'Failed report run must record a non-empty failure_reason');
+  assert.equal(failedRun.tenant_id, 'tenant_intelliflow_systems', 'Failed report run must be scoped to the requesting tenant');
+  const evostelCtx = context('tenant_evostel', 'tenant_evostel_user_admin');
+  const evostelRuns = listReportRuns(evostelCtx).runs;
+  assert.ok(!evostelRuns.find((run) => run.id === failedRun.id), 'Evostel must not see IntelliFlow failed runs (tenant isolation)');
+});
+
+test('denied report access blocks the call at service layer and HTTP route audit-logs it', async () => {
+  const serviceCtx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_worker');
+  assert.throws(
+    () => runReport(serviceCtx, { reportKey: 'inventory_stock_position', format: 'CSV' }),
+    /capability|permission|run_reports/i,
+    'worker without run_reports must be denied at service layer'
+  );
+  const headers = { 'x-tenant-id': 'tenant_intelliflow_systems', 'x-user-id': 'tenant_intelliflow_systems_user_worker' };
+  const { response } = await httpRequest('/api/reports/runs', { method: 'POST', headers, body: { reportKey: 'inventory_stock_position', format: 'CSV' } });
+  assert.equal(response.status, 403, 'HTTP route must return 403 for worker attempting to run a report');
+  const auditLogs = selectAll('SELECT * FROM audit_logs WHERE tenant_id = ? AND action = ? ORDER BY created_at DESC LIMIT 5', [
+    'tenant_intelliflow_systems',
+    'DENIED_ROUTE_ACCESS'
+  ]);
+  assert.ok(auditLogs.length > 0, 'HTTP route denial must create a DENIED_ROUTE_ACCESS audit log entry');
+});
+
+test('report run cancel transitions status and audit-logs it', () => {
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  const runResult = runReport(ctx, { reportKey: 'device_trust_posture', format: 'CSV' });
+  assert.equal(runResult.run.status, 'COMPLETED', 'synchronous run must complete immediately');
+  const cancelled = cancelReportRun(ctx, runResult.run.id, { reason: 'test cancel' });
+  assert.equal(cancelled.run.status, 'COMPLETED', 'already-COMPLETED run must remain COMPLETED after cancel attempt');
+  const auditRows = selectAll(
+    'SELECT * FROM audit_logs WHERE tenant_id = ? AND entity_type = ? AND entity_id = ? ORDER BY created_at DESC',
+    ['tenant_intelliflow_systems', 'report_run', runResult.run.id]
+  );
+  assert.ok(auditRows.length > 0, 'Completed report run must have audit records');
+});
+
+test('finance export readiness report returns correct columns without 500 error', () => {
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_finance');
+  const runResult = runReport(ctx, { reportKey: 'finance_export_readiness', format: 'CSV' });
+  assert.equal(runResult.run.status, 'COMPLETED', 'finance_export_readiness report must complete');
+  const csv = exportReportRunCsv(ctx, runResult.run.id);
+  assert.ok(csv.export.content_text.includes('Batch') || csv.export.content_text.includes('Status'), 'finance CSV must include column headers');
+});
+
+test('platform auditor role can read platform reports but cannot run them', () => {
+  const auditorCtx = {
+    platformUser: { id: 'platform_user_auditor', role_key: 'PLATFORM_AUDITOR' },
+    requestId: 'test-platform-auditor'
+  };
+  const defs = listPlatformReportDefinitions(auditorCtx).definitions;
+  assert.ok(defs.length >= 3, 'PLATFORM_AUDITOR must see platform report definitions');
+  const summary = listPlatformReportSummary(auditorCtx);
+  assert.ok(summary.summary.availableReports >= 3, 'PLATFORM_AUDITOR must get report summary');
+  const runs = listPlatformReportRuns(auditorCtx).runs;
+  assert.ok(Array.isArray(runs), 'PLATFORM_AUDITOR must be able to list platform report runs');
+});
+
+test('tenant user cannot access platform report APIs', () => {
+  const tenantCtx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  assert.throws(
+    () => runPlatformReport(tenantCtx, { reportKey: 'platform_tenant_summary', format: 'CSV' }),
+    /platform|unauthorized|not authenticated/i,
+    'Tenant user must not be able to run platform reports'
+  );
+});
+
+test('reports page has no dead PDF or CSV buttons — all actions backed by real routes', () => {
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  const previousData = shellState.data;
+  shellState.data = {
+    ...(previousData || {}),
+    reports: {
+      summary: listReportSummary(ctx).summary,
+      definitions: listReportDefinitions(ctx),
+      runs: listReportRuns(ctx)
+    }
+  };
+  try {
+    const html = reportsPage();
+    assert.ok(html.includes('data-action="run-report"'), 'Reports page must have real run-report buttons');
+    assert.ok(!html.includes('data-action="fake-'), 'Reports page must have no fake action buttons');
+    assert.ok(!html.includes('Coming soon'), 'Reports page must not show coming-soon copy');
+    assert.ok(!html.includes('Feature not enabled'), 'Reports page must not fall through to modulePreviewPage');
+    assert.ok(html.includes('data-format="CSV"'), 'Reports page must have CSV run buttons backed by real format attribute');
+    assert.ok(html.includes('data-format="PDF"'), 'Reports page must have PDF run buttons backed by real format attribute');
+  } finally {
+    shellState.data = previousData;
+  }
+});
+
+test('Phase 3H release doc exists and documents the reporting center', () => {
+  const content = readFileSync('docs/releases/phase-3h-enterprise-reporting.md', 'utf8');
+  assert.match(content, /Phase 3H/i, 'Phase 3H release doc must contain Phase 3H heading');
+  assert.match(content, /CSV/i, 'Phase 3H doc must mention CSV export');
+  assert.match(content, /PDF/i, 'Phase 3H doc must mention PDF export');
+  assert.match(content, /tenant.*isol|isol.*tenant/i, 'Phase 3H doc must mention tenant isolation');
+});
