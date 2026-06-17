@@ -28,7 +28,7 @@ Status categories:
 | Browser smoke | Verified in validation stack | RC1 browser coverage passed on the current shell and module set. |
 | ERP connector | Roadmap | Connector abstraction exists; production connector wiring remains. |
 | OCR provider | Roadmap | Invoice OCR is not yet a go-live dependency. |
-| Reports export | Roadmap | CSV/PDF report delivery remains future work. |
+| Reports export | Ready | Tenant report catalog, report runs, CSV export, and PDF export are implemented and audited. |
 | AI execution | Blocked | AI remains advisory-only until explicitly enabled with human approval. |
 
 ## Executive summary

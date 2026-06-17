@@ -192,7 +192,15 @@ const {
   listSsoConfigurations,
   listBackupRecords,
   listRestoreTests,
-  downloadEvidenceContent
+  downloadEvidenceContent,
+  listReportDefinitions,
+  listReportSummary,
+  listReportRuns,
+  getReportRun,
+  runReport,
+  cancelReportRun,
+  exportReportRunCsv,
+  exportReportRunPdf
 } = await import('../src/services.js');
 const { selectAll, selectOne, execute, getDatabaseRuntimeInfo } = await import('../src/db.js');
 const { runStartupChecks } = await import('../src/startup.js');
@@ -204,6 +212,15 @@ const {
   getSessionRuntimeSelection,
   getTenantOidcRuntimeSelection
 } = await import('../src/runtime-config.js');
+const {
+  listPlatformReportDefinitions,
+  listPlatformReportSummary,
+  listPlatformReportRuns,
+  runPlatformReport,
+  getPlatformReportRun,
+  exportPlatformReportRunCsv,
+  exportPlatformReportRunPdf
+} = await import('../src/platform.js');
 const { createSynchronousWorkerBridge } = await import('../src/sync-rpc.js');
 const {
   state: shellState,
@@ -461,7 +478,7 @@ test('migration upgrade advances an older database without losing tenant data', 
     }
   }).toString('utf8').trim();
   const payload = JSON.parse(result);
-  assert.equal(payload.version, 23);
+  assert.equal(payload.version, 24);
   assert.equal(payload.tables, 1);
 });
 
@@ -4199,7 +4216,7 @@ test('verify-migration script exits 0 against test database', () => {
     },
     encoding: 'utf8'
   });
-  assert.ok(result.includes('OK All 23 migrations verified'), 'verify-migration must confirm all 23 migrations');
+  assert.ok(result.includes('OK All 24 migrations verified'), 'verify-migration must confirm all 24 migrations');
 });
 
 test('production 500 errors do not expose stack traces in response body', async () => {
@@ -4254,19 +4271,100 @@ test('workerPage renders Worker-Safe Mode (not modulePreviewPage fallback)', () 
   assert.ok(!html.includes('Contact your platform admin'), 'workerPage must not show modulePreviewPage copy');
 });
 
-test('reportsPage renders Reports catalog (not modulePreviewPage fallback)', () => {
-  const html = reportsPage();
-  assert.ok(html.includes('Report') || html.includes('Export'), 'reportsPage must include report content');
-  assert.ok(!html.includes('Feature not enabled'), 'reportsPage must not fall through to modulePreviewPage');
-  assert.ok(!html.includes('Contact your platform admin'), 'reportsPage must not show modulePreviewPage copy');
+test('reports catalog is backend-backed and page renders the enterprise surface', () => {
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  const definitions = listReportDefinitions(ctx).definitions;
+  const summary = listReportSummary(ctx);
+  const previousData = shellState.data;
+  shellState.data = {
+    ...(previousData || {}),
+    reports: {
+      definitions: { definitions },
+      summary: summary.summary,
+      runs: { runs: [] }
+    }
+  };
+  try {
+    const html = reportsPage();
+    assert.ok(definitions.length >= 10, 'reports catalog must include tenant and platform reports');
+    assert.ok(summary.summary.availableReports >= 10, 'reports summary must count available reports');
+    assert.ok(html.includes('Reports Center'), 'reportsPage must include the Reports Center heading');
+    assert.ok(html.includes('Report Catalog'), 'reportsPage must include the Report Catalog section');
+    assert.ok(html.includes('Recent Runs'), 'reportsPage must include the recent runs section');
+    assert.ok(html.includes('Run CSV') && html.includes('Run PDF'), 'reportsPage must expose real run actions');
+    assert.ok(!html.includes('Feature not enabled'), 'reportsPage must not fall through to modulePreviewPage');
+    assert.ok(!html.includes('Contact your platform admin'), 'reportsPage must not show modulePreviewPage copy');
+    assert.ok(!html.includes('Phase 1'), 'reportsPage must not contain stale phase copy');
+  } finally {
+    shellState.data = previousData;
+  }
 });
 
-test('reportsPage renders all 6 report catalog entries', () => {
-  const html = reportsPage();
-  const expectedReports = ['Inventory On Hand', 'Low Stock', 'Inventory Movement', 'Request Status', 'Purchase Activity', 'Audit Activity'];
-  for (const report of expectedReports) {
-    assert.ok(html.includes(report), `reportsPage must include "${report}" report entry`);
-  }
+test('reports API runs reports, exports CSV/PDF, and keeps audit state tenant-scoped', () => {
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  const runResult = runReport(ctx, { reportKey: 'inventory_stock_position', format: 'CSV' });
+  assert.ok(runResult.run?.id, 'report run must create a persisted run');
+  assert.equal(runResult.run.surface, 'TENANT', 'tenant report runs must use TENANT surface');
+  assert.equal(runResult.run.status, 'COMPLETED', 'report run must complete synchronously');
+  assert.ok(runResult.rows.length > 0, 'inventory stock position report must return rows');
+  const detail = getReportRun(ctx, runResult.run.id);
+  assert.ok(detail.exports.length > 0, 'report detail must include exports');
+  assert.ok(detail.audit.length > 0, 'report detail must include audit trail');
+  const csv = exportReportRunCsv(ctx, runResult.run.id);
+  const pdf = exportReportRunPdf(ctx, runResult.run.id);
+  assert.match(csv.export.content_type, /text\/csv/, 'CSV export must be text/csv');
+  assert.match(pdf.export.content_type, /application\/pdf/, 'PDF export must be application/pdf');
+  assert.ok(String(csv.export.content_text || '').includes('SKU'), 'CSV export must include report columns');
+  assert.ok(Buffer.isBuffer(pdf.export.content_blob), 'PDF export must generate a binary payload');
+});
+
+test('report routes are exposed on the server and return tenant-scoped results', async () => {
+  const headers = {
+    'x-tenant-id': 'tenant_intelliflow_systems',
+    'x-user-id': 'tenant_intelliflow_systems_user_admin'
+  };
+  const definitions = await httpRequest('/api/reports/definitions', { headers });
+  assert.equal(definitions.response.status, 200, 'report definitions route must return 200');
+  assert.ok((definitions.payload.definitions || []).length >= 10, 'report definitions route must return catalog entries');
+  const runResponse = await httpRequest('/api/reports/runs', {
+    method: 'POST',
+    headers,
+    body: { reportKey: 'audit_trail_summary', format: 'CSV' }
+  });
+  assert.equal(runResponse.response.status, 200, 'report run route must return 200');
+  assert.equal(runResponse.payload.run.surface, 'TENANT', 'report run route must remain tenant-scoped');
+  assert.ok(runResponse.payload.export?.file_name?.endsWith('.csv'), 'report run route must return export metadata');
+});
+
+test('platform reports are role-gated and audit-backed', () => {
+  const ctx = {
+    platformUser: { id: 'platform_user_admin', role_key: 'PLATFORM_ADMIN', name: 'Platform Admin', email: 'platform@opstrax.local' },
+    requestId: 'test-platform-report'
+  };
+  const defs = listPlatformReportDefinitions(ctx).definitions;
+  const summary = listPlatformReportSummary(ctx);
+  const runResult = runPlatformReport(ctx, { reportKey: 'platform_tenant_summary', format: 'CSV' });
+  const runDetail = getPlatformReportRun(ctx, runResult.run.id);
+  const csv = exportPlatformReportRunCsv(ctx, runResult.run.id);
+  const pdf = exportPlatformReportRunPdf(ctx, runResult.run.id);
+  assert.ok(defs.length >= 3, 'platform reports must be available to platform admin');
+  assert.ok(summary.summary.availableReports >= 3, 'platform report summary must count available reports');
+  assert.equal(runResult.run.surface, 'PLATFORM', 'platform report runs must use PLATFORM surface');
+  assert.equal(runResult.run.status, 'COMPLETED', 'platform report run must complete');
+  assert.ok(runDetail.audit.length > 0, 'platform report runs must be audit logged');
+  assert.match(csv.export.content_type, /text\/csv/, 'platform CSV export must be text/csv');
+  assert.match(pdf.export.content_type, /application\/pdf/, 'platform PDF export must be application/pdf');
+  assert.ok((listPlatformReportRuns(ctx).runs || []).length >= 1, 'platform report runs list must include the created run');
+});
+
+test('reports page and run APIs keep restricted tenants on a smaller, tenant-scoped catalog', async () => {
+  const ctx = context('tenant_evostel', 'tenant_evostel_user_admin');
+  const defs = listReportDefinitions(ctx).definitions;
+  const summary = listReportSummary(ctx);
+  assert.ok(defs.length > 0, 'restricted tenant must still see permitted reports');
+  assert.ok(defs.length < listReportDefinitions(context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin')).definitions.length,
+    'restricted tenant must have fewer report definitions than the full tenant');
+  assert.ok(summary.summary.availableReports === defs.length, 'restricted report summary must match available report definitions');
 });
 
 test('workerPage renders worker execution panel with pending offline batches section', () => {
@@ -4405,9 +4503,11 @@ test('no stale phase copy in Worker-Safe Mode page', () => {
   assert.ok(!html.includes('Read-only enterprise shell preview'), 'workerPage must not contain old preview copy');
 });
 
-test('no stale phase copy in Reports page', () => {
+test('no stale demo or preview copy in Reports page', () => {
   const html = reportsPage();
-  assert.ok(!html.includes('Phase 1'), 'reportsPage must not contain "Phase 1" stale copy');
+  assert.ok(!html.includes('demo-only'), 'reportsPage must not contain demo-only copy');
+  assert.ok(!html.includes('modulePreviewPage'), 'reportsPage must not contain modulePreviewPage copy');
+  assert.ok(!html.includes('bootstrap'), 'reportsPage must not contain bootstrap copy');
   assert.ok(!html.includes('Read-only enterprise shell preview'), 'reportsPage must not contain old preview copy');
 });
 

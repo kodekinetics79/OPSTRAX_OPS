@@ -1,3 +1,5 @@
+import { getReportSeedRows } from './reporting.js';
+
 const tenants = [
   {
     id: 'tenant_intelliflow_systems',
@@ -189,6 +191,8 @@ const permissions = [
   { key: 'approve_ai_placeholder', name: 'Approve AI placeholder', description: 'Mark an AI recommendation as placeholder-approved (no domain action).' },
   { key: 'view_ai_runs', name: 'View AI runs', description: 'Read AI execution run logs.' },
   { key: 'query_ops_copilot', name: 'Query Ops Copilot', description: 'Submit read-only queries to the Ops Copilot.' },
+  { key: 'view_reports', name: 'View reports', description: 'Read tenant and platform reporting surfaces.' },
+  { key: 'run_reports', name: 'Run reports', description: 'Generate tenant report runs and downloads.' },
   { key: 'view_restricted_ai_context', name: 'View restricted AI context', description: 'Allow AI context to include restricted/controlled items.' }
 ];
 
@@ -386,6 +390,11 @@ const rolePermissions = {
     'view_ai_summary', 'view_ai_recommendations', 'view_ai_runs', 'query_ops_copilot'
   ]
 };
+
+rolePermissions.supervisor.push('view_reports', 'run_reports');
+rolePermissions.requester.push('view_reports', 'run_reports');
+rolePermissions.worker.push('view_reports');
+rolePermissions.finance.push('view_reports', 'run_reports');
 
 const departmentNames = [
   { key: 'operations', name: 'Operations', code: 'OPS' },
@@ -3310,6 +3319,7 @@ function buildPlatformSeedData() {
 
 const seeded = tenants.map(buildTenantData);
 const platformSeed = buildPlatformSeedData();
+const reportSeed = getReportSeedRows();
 
 export const seedData = {
   tenants,
@@ -3374,6 +3384,9 @@ export const seedData = {
   riskRegister: seeded.flatMap((tenant) => tenant.riskRegister),
   incidentRegister: seeded.flatMap((tenant) => tenant.incidentRegister),
   aiGovernanceLogs: seeded.flatMap((tenant) => tenant.aiGovernanceLogs),
+  reportDefinitions: reportSeed.reportDefinitions,
+  reportRuns: reportSeed.reportRuns,
+  reportExports: reportSeed.reportExports,
   backupRecords: seeded.flatMap((tenant) => tenant.backupRecords),
   restoreTestRecords: seeded.flatMap((tenant) => tenant.restoreTestRecords),
   ssoConfigurations: seeded.flatMap((tenant) => tenant.ssoConfigurations),

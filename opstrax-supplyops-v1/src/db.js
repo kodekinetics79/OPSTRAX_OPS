@@ -40,7 +40,8 @@ const migrations = [
   { version: 20, file: '020_production_foundation.sql' },
   { version: 21, file: '021_platform_admin_control_plane.sql' },
   { version: 22, file: '022_platform_admin_control_plane_refresh.sql' },
-  { version: 23, file: '023_platform_oidc_cutover.sql' }
+  { version: 23, file: '023_platform_oidc_cutover.sql' },
+  { version: 24, file: '024_reporting_export_center.sql' }
 ];
 
 mkdirSync(dataDir, { recursive: true });
@@ -214,10 +215,13 @@ function seedIfNeeded() {
     insertRows('documents', seedData.documents);
     insertRows('evidence_links', seedData.evidenceLinks);
     insertRows('audit_logs', seedData.auditLogs);
+    insertRows('report_definitions', seedData.reportDefinitions);
     insertRows('backup_records', seedData.backupRecords);
     insertRows('restore_test_records', seedData.restoreTestRecords);
     insertRows('sso_configurations', seedData.ssoConfigurations);
     insertRows('platform_users', seedData.platformUsers);
+    insertRows('report_runs', seedData.reportRuns);
+    insertRows('report_exports', seedData.reportExports);
     insertRows('platform_user_roles', seedData.platformUserRoles);
     insertRows('tenant_plans', seedData.tenantPlans);
     insertRows('tenant_subscriptions', seedData.tenantSubscriptions);

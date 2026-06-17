@@ -5,6 +5,16 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { authMode, getAuthBootstrap, isLocalDemoEnabled, readSession } from './auth.js';
 import {
+  cancelReportRun as cancelReportRunAction,
+  exportReportCsv as exportReportCsvAction,
+  exportReportPdf as exportReportPdfAction,
+  getReportRun as getReportRunAction,
+  listReportDefinitions as listReportDefinitionsAction,
+  listReportRuns as listReportRunsAction,
+  listReportSummary as listReportSummaryAction,
+  runReport as runReportAction
+} from './reporting.js';
+import {
   getPlatformOidcRuntimeSelection,
   getSessionRuntimeSelection,
   getTenantOidcRuntimeSelection
@@ -24,6 +34,11 @@ const roleCapabilities = {
 
 roleCapabilities.supervisor.push('view_procure_to_pay', 'view_vendor_invoices', 'create_vendor_invoice', 'update_vendor_invoice', 'extract_vendor_invoice', 'match_vendor_invoice', 'waive_invoice_exception', 'approve_vendor_invoice', 'reject_vendor_invoice', 'mark_invoice_export_ready', 'export_vendor_invoice', 'view_rfq_requests', 'create_rfq_request', 'update_rfq_request', 'send_rfq_request', 'evaluate_rfq_request', 'award_rfq_request', 'cancel_rfq_request', 'view_vendor_quotes', 'create_vendor_quote', 'update_vendor_quote', 'submit_vendor_quote', 'shortlist_vendor_quote', 'award_vendor_quote', 'reject_vendor_quote', 'expire_vendor_quote', 'view_vendor_scorecards');
 roleCapabilities.finance.push('view_procure_to_pay', 'view_vendor_invoices', 'create_vendor_invoice', 'update_vendor_invoice', 'extract_vendor_invoice', 'match_vendor_invoice', 'waive_invoice_exception', 'approve_vendor_invoice', 'reject_vendor_invoice', 'mark_invoice_export_ready', 'export_vendor_invoice', 'view_rfq_requests', 'view_vendor_quotes', 'view_vendor_scorecards');
+roleCapabilities.admin.push('view_reports', 'run_reports');
+roleCapabilities.supervisor.push('view_reports', 'run_reports');
+roleCapabilities.finance.push('view_reports', 'run_reports');
+roleCapabilities.requester.push('view_reports');
+roleCapabilities.worker.push('view_reports');
 
 function rolePermissionRows(roleKey) {
   return selectAll(
@@ -6297,6 +6312,56 @@ export function listLabelJobs(context) {
     `,
     [context.tenant.id]
   );
+}
+
+function requireReportsRead(context) {
+  requireFeature(context, 'reports');
+  requireCapability(context, 'view_reports');
+}
+
+function requireReportsWrite(context) {
+  requireFeature(context, 'reports');
+  requireCapability(context, 'run_reports');
+}
+
+export function listReportDefinitions(context) {
+  requireReportsRead(context);
+  return listReportDefinitionsAction('TENANT', context);
+}
+
+export function listReportSummary(context) {
+  requireReportsRead(context);
+  return listReportSummaryAction('TENANT', context);
+}
+
+export function listReportRuns(context) {
+  requireReportsRead(context);
+  return listReportRunsAction('TENANT', context);
+}
+
+export function getReportRun(context, runId) {
+  requireReportsRead(context);
+  return getReportRunAction('TENANT', context, runId);
+}
+
+export function runReport(context, body = {}) {
+  requireReportsWrite(context);
+  return runReportAction('TENANT', context, body);
+}
+
+export function cancelReportRun(context, runId, body = {}) {
+  requireReportsWrite(context);
+  return cancelReportRunAction('TENANT', context, runId, body);
+}
+
+export function exportReportRunCsv(context, runId) {
+  requireReportsRead(context);
+  return exportReportCsvAction('TENANT', context, runId);
+}
+
+export function exportReportRunPdf(context, runId) {
+  requireReportsRead(context);
+  return exportReportPdfAction('TENANT', context, runId);
 }
 
 function normalizeExportSelection(body = {}) {

@@ -7,6 +7,16 @@ import {
   logoutPlatformSession,
   readPlatformSession
 } from './auth.js';
+import {
+  cancelReportRun as cancelReportRunAction,
+  exportReportCsv as exportReportCsvAction,
+  exportReportPdf as exportReportPdfAction,
+  getReportRun as getReportRunAction,
+  listReportDefinitions as listReportDefinitionsAction,
+  listReportRuns as listReportRunsAction,
+  listReportSummary as listReportSummaryAction,
+  runReport as runReportAction
+} from './reporting.js';
 
 const PLATFORM_ROLE_CAPABILITIES = {
   PLATFORM_OWNER: new Set(['*']),
@@ -26,7 +36,9 @@ const PLATFORM_ROLE_CAPABILITIES = {
     'MANAGE_PLATFORM_SUBSCRIPTION',
     'MANAGE_PLATFORM_ENTITLEMENTS',
     'MANAGE_PLATFORM_TENANT_STATUS',
-    'VIEW_PLATFORM_SYSTEM_HEALTH'
+    'VIEW_PLATFORM_SYSTEM_HEALTH',
+    'VIEW_PLATFORM_REPORTS',
+    'RUN_PLATFORM_REPORTS'
   ]),
   PLATFORM_SUPPORT: new Set([
     'VIEW_PLATFORM_SUMMARY',
@@ -39,7 +51,9 @@ const PLATFORM_ROLE_CAPABILITIES = {
     'VIEW_PLATFORM_AUDIT_EVENTS',
     'VIEW_PLATFORM_SECURITY_EVENTS',
     'VIEW_PLATFORM_SUPPORT_SESSIONS',
-    'MANAGE_PLATFORM_SUPPORT_SESSIONS'
+    'MANAGE_PLATFORM_SUPPORT_SESSIONS',
+    'VIEW_PLATFORM_REPORTS',
+    'RUN_PLATFORM_REPORTS'
   ]),
   PLATFORM_BILLING: new Set([
     'VIEW_PLATFORM_SUMMARY',
@@ -48,7 +62,8 @@ const PLATFORM_ROLE_CAPABILITIES = {
     'VIEW_PLATFORM_TENANT_USAGE',
     'VIEW_PLATFORM_TENANT_HEALTH',
     'VIEW_PLATFORM_BILLING_EVENTS',
-    'MANAGE_PLATFORM_SUBSCRIPTION'
+    'MANAGE_PLATFORM_SUBSCRIPTION',
+    'VIEW_PLATFORM_REPORTS'
   ]),
   PLATFORM_SECURITY: new Set([
     'VIEW_PLATFORM_SUMMARY',
@@ -57,7 +72,9 @@ const PLATFORM_ROLE_CAPABILITIES = {
     'VIEW_PLATFORM_TENANT_HEALTH',
     'VIEW_PLATFORM_AUDIT_EVENTS',
     'VIEW_PLATFORM_SECURITY_EVENTS',
-    'MANAGE_PLATFORM_TENANT_STATUS'
+    'MANAGE_PLATFORM_TENANT_STATUS',
+    'VIEW_PLATFORM_REPORTS',
+    'RUN_PLATFORM_REPORTS'
   ]),
   PLATFORM_AUDITOR: new Set([
     'VIEW_PLATFORM_SUMMARY',
@@ -71,7 +88,8 @@ const PLATFORM_ROLE_CAPABILITIES = {
     'VIEW_PLATFORM_SECURITY_EVENTS',
     'VIEW_PLATFORM_BILLING_EVENTS',
     'VIEW_PLATFORM_SUPPORT_SESSIONS',
-    'VIEW_PLATFORM_SYSTEM_HEALTH'
+    'VIEW_PLATFORM_SYSTEM_HEALTH',
+    'VIEW_PLATFORM_REPORTS'
   ])
 };
 
@@ -790,6 +808,60 @@ export function auditPlatformDenied(context, payload) {
     },
     requestId: payload.requestId || context?.requestId || ''
   });
+}
+
+function requirePlatformReportsRead(context) {
+  requirePlatformRole(context, ['PLATFORM_OWNER', 'PLATFORM_ADMIN', 'PLATFORM_SUPPORT', 'PLATFORM_BILLING', 'PLATFORM_SECURITY', 'PLATFORM_AUDITOR']);
+  if (!platformUserCapabilities(context.platformUser.role_key).has('*') && !platformUserCapabilities(context.platformUser.role_key).has('VIEW_PLATFORM_REPORTS')) {
+    throw platformFail('Missing platform capability', 403);
+  }
+}
+
+function requirePlatformReportsWrite(context) {
+  requirePlatformRole(context, ['PLATFORM_OWNER', 'PLATFORM_ADMIN', 'PLATFORM_SUPPORT', 'PLATFORM_SECURITY']);
+  if (!platformUserCapabilities(context.platformUser.role_key).has('*') && !platformUserCapabilities(context.platformUser.role_key).has('RUN_PLATFORM_REPORTS')) {
+    throw platformFail('Missing platform capability', 403);
+  }
+}
+
+export function listPlatformReportDefinitions(context) {
+  requirePlatformReportsRead(context);
+  return listReportDefinitionsAction('PLATFORM', context);
+}
+
+export function listPlatformReportSummary(context) {
+  requirePlatformReportsRead(context);
+  return listReportSummaryAction('PLATFORM', context);
+}
+
+export function listPlatformReportRuns(context) {
+  requirePlatformReportsRead(context);
+  return listReportRunsAction('PLATFORM', context);
+}
+
+export function getPlatformReportRun(context, runId) {
+  requirePlatformReportsRead(context);
+  return getReportRunAction('PLATFORM', context, runId);
+}
+
+export function runPlatformReport(context, body = {}) {
+  requirePlatformReportsWrite(context);
+  return runReportAction('PLATFORM', context, body);
+}
+
+export function cancelPlatformReportRun(context, runId, body = {}) {
+  requirePlatformReportsWrite(context);
+  return cancelReportRunAction('PLATFORM', context, runId, body);
+}
+
+export function exportPlatformReportRunCsv(context, runId) {
+  requirePlatformReportsRead(context);
+  return exportReportCsvAction('PLATFORM', context, runId);
+}
+
+export function exportPlatformReportRunPdf(context, runId) {
+  requirePlatformReportsRead(context);
+  return exportReportPdfAction('PLATFORM', context, runId);
 }
 
 export {

@@ -70,7 +70,7 @@ Open `http://localhost:9899` in a normal browser. The SSO gate remains visible f
 - `npm test`: passed, 169/169
 - `npm run build`: passed
 - `npm run security`: passed, 0 vulnerabilities
-- `npm run verify-migration`: passed, schema version 22 verified
+- `npm run verify-migration`: passed, schema version 24 verified
 - `npm run perf-smoke`: passed
 - `npm run browser-smoke`: passed, 53/53 checks and 23 screenshots
 
@@ -88,7 +88,7 @@ Open `http://localhost:9899` in a normal browser. The SSO gate remains visible f
 - AI provider is not configured; AI is read-only and system-generated in this release.
 - ERP dispatch is a foundation/sandbox posture unless a real connector is configured.
 - Evidence uses hardened metadata in local workspace mode; production object storage remains a future step.
-- Reports CSV/PDF export is roadmap-only.
+- Reports CSV/PDF export is live in RC1 and backed by tenant-scoped report runs, CSV, and PDF handlers.
 - Worker-Safe Mode is role-dependent.
 - Invoice/OCR is not built yet.
 

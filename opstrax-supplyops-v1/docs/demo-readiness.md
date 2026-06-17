@@ -268,7 +268,7 @@ X-Dev-User-Id: tenant_intelliflow_systems_user_admin
 | AI Operations | NOT_CONFIGURED banner | SYSTEM_GENERATED labels |
 | Compliance Center | Control cards | Coverage % displayed |
 | Worker-Safe Mode | Restricted queue (worker user) | No finance/admin visible |
-| Reports | Report catalog | 6 export-ready report types |
+| Reports | Report catalog | 12 tenant reports + 6 platform reports; CSV and PDF exports are tenant-scoped and audited |
 | Admin | Users + devices | Role assignment visible |
 
 ---
@@ -295,7 +295,7 @@ X-Dev-User-Id: tenant_intelliflow_systems_user_admin
 | ERP Dispatch | Export and dispatch posture is real, but live ERP acknowledgment is not claimed unless a connector is configured. |
 | Email / Notifications | Not implemented. Events are audit-logged. |
 | Rate Limiting | Reverse proxy required for production. |
-| PDF Export / CSV Download | Reports catalog is real; PDF/CSV export delivery remains roadmap-only. |
+| PDF Export / CSV Download | Reports catalog is real; PDF/CSV export delivery is implemented and audited. |
 
 ---
 
@@ -337,6 +337,7 @@ Capture these screens during a pre-demo dry run. The browser smoke script writes
 | `invoice-intelligence-drawer.png` | Procure-to-Pay invoice drawer |
 | `worker-safe-mode.png` | Worker-Safe Mode |
 | `reports.png` | Reports |
+| `reports-center-drawer.png` | Reports Center drawer |
 | `admin.png` | Admin |
 | `compliance-center.png` | Compliance Center |
 | `99-evostel-restricted.png` | Restricted tenant navigation |

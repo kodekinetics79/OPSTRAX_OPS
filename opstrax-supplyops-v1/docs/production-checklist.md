@@ -22,7 +22,7 @@ Complete this checklist before go-live. Status values: `Ready`, `Configured`, `V
 | Monitoring / Alerts | Blocked | External alerting, paging, and log shipping still need deployment wiring. |
 | ERP Connector | Roadmap | Connector abstraction exists; external ERP credentials and routing still need production setup. |
 | OCR / Invoice Capture | Roadmap | Invoice OCR is not part of Phase 3E. |
-| CSV / PDF Reports | Roadmap | Export formats are not yet a production deliverable. |
+| CSV / PDF Reports | Ready | Tenant report catalog, report runs, CSV export, and PDF export are implemented and audited. |
 
 ## Environment
 

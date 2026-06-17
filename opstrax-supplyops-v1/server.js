@@ -16,8 +16,8 @@ import {
   logoutSession,
   requireCsrf
 } from './src/auth.js';
-import { auditDenied, getAdminSnapshot, getAuditSummary, getEntityAudit, getMe, getReceiveSessionDetail, getReceivingSummary, getEvidenceDetail, downloadEvidenceContent, linkEvidence, verifyEvidence, archiveEvidence, listEvidenceLinks, listAuditLogs, listBootstrap, listCompliance, listDepartments, listDevices, listDocuments, listExports, listExportSummary, listExportCandidates, listExportBatches, getExportBatchDetail, listExportBatchErrors, validateExportBatch, approveExportBatch, generateExportBatch, dispatchExportBatch, cancelExportBatch, listFacilities, listFeatureFlags, listInternalRequests, listItems, listItemCategories, listInventorySummary, listInventoryBalances, listStockMovements, listStockAdjustments, listInventoryBins, getItemDetail, getInventoryAdjustmentDetail, createItem, updateItem, createStockAdjustment, listLabelJobs, listPermissions, listPurchaseRequests, listPurchaseOrders, listReceivingMovements, listReceivingPurchaseOrders, listReceivingSessions, listVendors, getProcurementSummary, getVendorDetail, createVendor, updateVendor, getPurchaseDetail, getPurchaseOrderDetail, createPurchaseRequest, updatePurchaseRequest, submitPurchaseRequest, approvePurchaseRequest, rejectPurchaseRequest, cancelPurchaseRequest, listPurchaseRequestLines, createPurchaseRequestLine, updatePurchaseRequestLine, deletePurchaseRequestLine, createPurchaseOrderFromPurchaseRequest, updatePurchaseOrder, approvePurchaseOrder, issuePurchaseOrder, cancelPurchaseOrder, listSupplierContracts, getSupplierContractDetail, createSupplierContract, updateSupplierContract, listDepartmentBudgets, getDepartmentBudgetDetail, updateDepartmentBudget, listProcurementWaivers, createProcurementWaiver, getProcurementAdvisory, getProcureToPaySummary, listVendorInvoices, listVendorInvoiceLines, listVendorInvoiceExceptions, getVendorInvoiceExceptionDetail, getVendorInvoiceDetail, createVendorInvoice, createVendorInvoiceLine, updateVendorInvoice, updateVendorInvoiceLine, deleteVendorInvoiceLine, uploadVendorInvoice, extractVendorInvoice, matchVendorInvoice, waiveInvoiceException, approveVendorInvoice, rejectVendorInvoice, cancelVendorInvoice, markVendorInvoiceExportReady, exportVendorInvoice, listRfqRequests, getRfqRequestDetail, createRfqRequest, updateRfqRequest, sendRfqRequest, evaluateRfqRequest, awardRfqRequest, cancelRfqRequest, listRfqLines, createRfqLine, updateRfqLine, deleteRfqLine, listVendorQuotes, getVendorQuoteDetail, createVendorQuote, updateVendorQuote, submitVendorQuote, shortlistVendorQuote, awardVendorQuote, rejectVendorQuote, expireVendorQuote, listVendorScorecards, createReceiveSessionFromPurchaseOrder, startReceiveSession, recordReceiveLine, recordReceiveException, postReceiveSession, cancelReceiveSession, listRoles, listSyncBatches, listSyncConflicts, listUsers, resolveContext, createInternalRequest, submitInternalRequest, cancelInternalRequest, approveInternalRequest, rejectInternalRequest, issueInternalRequest, reviewSyncBatch, createLabelJob, createExportBatch, validateFinanceExport, generateFinanceExport as generateFinanceExportAction, uploadDocument, resolveSyncConflict, dispatchExport, getRequestDetail, listAvailableRequestItems, updateInternalRequest, listRequestLines, createRequestLine, updateRequestLine, deleteRequestLine, listWarehouseSummary, listWarehouseTasks, listIssueReadyRequests, listWarehouseBins, getWarehouseTaskDetail, createWarehouseTaskFromRequest, startWarehouseTask, pickWarehouseTaskLine, issueWarehouseTaskLine, closeWarehouseTask, cancelWarehouseTask, listIntegrationSummary, listIntegrationConnections, createIntegrationConnection, listIntegrationJobs, getIntegrationConnectionDetail, getIntegrationJobDetail, retryIntegrationJob, cancelIntegrationJob, listDeviceOpsSummary, createDevice, getDeviceDetail, updateDevice, trustDevice, suspendDevice, revokeDevice, listDeviceEvents, recordScanEvent, validateScan, listOfflineSummary, createOfflineBatch, listOfflineBatches, getOfflineBatchDetail, uploadOfflineBatch, validateOfflineBatch, replayOfflineBatch, approveOfflineBatch, rejectOfflineBatch, listSyncConflictsNew, getSyncConflictDetail, approveSyncConflict, rejectSyncConflict, listOfflineTasks, getOfflineTaskDetail , listAiSummary, listAiAgents, listAiRecommendations, generateAiRecommendations, getAiRecommendationDetail, dismissAiRecommendation, approveAiRecommendationPlaceholder, listAiRuns, getAiRunDetail, queryOpsCopilot, listComplianceControls, updateComplianceControl, listComplianceEvidence, listAccessReviews, createAccessReview, reviewAccessEntry, listRiskRegister, createRiskEntry, updateRiskEntry, listIncidentRegister, createIncident, updateIncident, listVendorIntegrationRegister, listAiGovernanceLogs, getSecurityPosture, getAvailabilityPosture, listSsoConfigurations, listBackupRecords, listRestoreTests } from './src/services.js';
-import { getPlatformAuthBootstrap, createPlatformDemoSession as createPlatformSession, endPlatformWorkspaceSession, resolvePlatformContext, getPlatformMe, getPlatformSummary, listPlatformTenants, getPlatformTenantDetail, getPlatformTenantUsers, getPlatformTenantModules, getPlatformTenantUsage, getPlatformTenantHealth, listPlatformAuditEvents, listPlatformSecurityEvents, listPlatformBillingEvents, listPlatformSupportSessions, createPlatformSupportSession, updatePlatformTenantSubscription, updatePlatformTenantPlan, updatePlatformTenantEntitlements, endPlatformSupportSession, suspendPlatformTenant, reactivatePlatformTenant, auditPlatformDenied } from './src/platform.js';
+import { auditDenied, getAdminSnapshot, getAuditSummary, getEntityAudit, getMe, getReceiveSessionDetail, getReceivingSummary, getEvidenceDetail, downloadEvidenceContent, linkEvidence, verifyEvidence, archiveEvidence, listEvidenceLinks, listAuditLogs, listBootstrap, listCompliance, listDepartments, listDevices, listDocuments, listExports, listExportSummary, listExportCandidates, listExportBatches, getExportBatchDetail, listExportBatchErrors, validateExportBatch, approveExportBatch, generateExportBatch, dispatchExportBatch, cancelExportBatch, listFacilities, listFeatureFlags, listInternalRequests, listItems, listItemCategories, listInventorySummary, listInventoryBalances, listStockMovements, listStockAdjustments, listInventoryBins, getItemDetail, getInventoryAdjustmentDetail, createItem, updateItem, createStockAdjustment, listLabelJobs, listPermissions, listPurchaseRequests, listPurchaseOrders, listReceivingMovements, listReceivingPurchaseOrders, listReceivingSessions, listVendors, getProcurementSummary, getVendorDetail, createVendor, updateVendor, getPurchaseDetail, getPurchaseOrderDetail, createPurchaseRequest, updatePurchaseRequest, submitPurchaseRequest, approvePurchaseRequest, rejectPurchaseRequest, cancelPurchaseRequest, listPurchaseRequestLines, createPurchaseRequestLine, updatePurchaseRequestLine, deletePurchaseRequestLine, createPurchaseOrderFromPurchaseRequest, updatePurchaseOrder, approvePurchaseOrder, issuePurchaseOrder, cancelPurchaseOrder, listSupplierContracts, getSupplierContractDetail, createSupplierContract, updateSupplierContract, listDepartmentBudgets, getDepartmentBudgetDetail, updateDepartmentBudget, listProcurementWaivers, createProcurementWaiver, getProcurementAdvisory, getProcureToPaySummary, listVendorInvoices, listVendorInvoiceLines, listVendorInvoiceExceptions, getVendorInvoiceExceptionDetail, getVendorInvoiceDetail, createVendorInvoice, createVendorInvoiceLine, updateVendorInvoice, updateVendorInvoiceLine, deleteVendorInvoiceLine, uploadVendorInvoice, extractVendorInvoice, matchVendorInvoice, waiveInvoiceException, approveVendorInvoice, rejectVendorInvoice, cancelVendorInvoice, markVendorInvoiceExportReady, exportVendorInvoice, listRfqRequests, getRfqRequestDetail, createRfqRequest, updateRfqRequest, sendRfqRequest, evaluateRfqRequest, awardRfqRequest, cancelRfqRequest, listRfqLines, createRfqLine, updateRfqLine, deleteRfqLine, listVendorQuotes, getVendorQuoteDetail, createVendorQuote, updateVendorQuote, submitVendorQuote, shortlistVendorQuote, awardVendorQuote, rejectVendorQuote, expireVendorQuote, listVendorScorecards, createReceiveSessionFromPurchaseOrder, startReceiveSession, recordReceiveLine, recordReceiveException, postReceiveSession, cancelReceiveSession, listRoles, listSyncBatches, listSyncConflicts, listUsers, resolveContext, createInternalRequest, submitInternalRequest, cancelInternalRequest, approveInternalRequest, rejectInternalRequest, issueInternalRequest, reviewSyncBatch, createLabelJob, createExportBatch, validateFinanceExport, generateFinanceExport as generateFinanceExportAction, uploadDocument, resolveSyncConflict, dispatchExport, getRequestDetail, listAvailableRequestItems, updateInternalRequest, listRequestLines, createRequestLine, updateRequestLine, deleteRequestLine, listWarehouseSummary, listWarehouseTasks, listIssueReadyRequests, listWarehouseBins, getWarehouseTaskDetail, createWarehouseTaskFromRequest, startWarehouseTask, pickWarehouseTaskLine, issueWarehouseTaskLine, closeWarehouseTask, cancelWarehouseTask, listIntegrationSummary, listIntegrationConnections, createIntegrationConnection, listIntegrationJobs, getIntegrationConnectionDetail, getIntegrationJobDetail, retryIntegrationJob, cancelIntegrationJob, listDeviceOpsSummary, createDevice, getDeviceDetail, updateDevice, trustDevice, suspendDevice, revokeDevice, listDeviceEvents, recordScanEvent, validateScan, listOfflineSummary, createOfflineBatch, listOfflineBatches, getOfflineBatchDetail, uploadOfflineBatch, validateOfflineBatch, replayOfflineBatch, approveOfflineBatch, rejectOfflineBatch, listSyncConflictsNew, getSyncConflictDetail, approveSyncConflict, rejectSyncConflict, listOfflineTasks, getOfflineTaskDetail , listAiSummary, listAiAgents, listAiRecommendations, generateAiRecommendations, getAiRecommendationDetail, dismissAiRecommendation, approveAiRecommendationPlaceholder, listAiRuns, getAiRunDetail, queryOpsCopilot, listComplianceControls, updateComplianceControl, listComplianceEvidence, listAccessReviews, createAccessReview, reviewAccessEntry, listRiskRegister, createRiskEntry, updateRiskEntry, listIncidentRegister, createIncident, updateIncident, listVendorIntegrationRegister, listAiGovernanceLogs, getSecurityPosture, getAvailabilityPosture, listSsoConfigurations, listBackupRecords, listRestoreTests, listReportDefinitions, listReportSummary, listReportRuns, getReportRun, runReport, cancelReportRun, exportReportRunCsv, exportReportRunPdf } from './src/services.js';
+import { getPlatformAuthBootstrap, createPlatformDemoSession as createPlatformSession, endPlatformWorkspaceSession, resolvePlatformContext, getPlatformMe, getPlatformSummary, listPlatformTenants, getPlatformTenantDetail, getPlatformTenantUsers, getPlatformTenantModules, getPlatformTenantUsage, getPlatformTenantHealth, listPlatformAuditEvents, listPlatformSecurityEvents, listPlatformBillingEvents, listPlatformSupportSessions, createPlatformSupportSession, updatePlatformTenantSubscription, updatePlatformTenantPlan, updatePlatformTenantEntitlements, endPlatformSupportSession, suspendPlatformTenant, reactivatePlatformTenant, auditPlatformDenied, listPlatformReportDefinitions, listPlatformReportSummary, listPlatformReportRuns, getPlatformReportRun, runPlatformReport, cancelPlatformReportRun, exportPlatformReportRunCsv, exportPlatformReportRunPdf } from './src/platform.js';
 import { getDatabaseRuntimeInfo, selectOne as dbSelectOne } from './src/db.js';
 import { probeEvidenceStorage } from './src/evidence-storage.js';
 import { parseJsonBody } from './src/validation.js';
@@ -240,6 +240,20 @@ function routeAction(pathname, method) {
   if (pathname.match(/^\/api\/procurement\/purchase-orders\/[^/]+\/approve$/)) return 'APPROVE_PURCHASE_ORDER';
   if (pathname.match(/^\/api\/procurement\/purchase-orders\/[^/]+\/issue$/)) return 'ISSUE_PURCHASE_ORDER';
   if (pathname.match(/^\/api\/procurement\/purchase-orders\/[^/]+\/cancel$/)) return 'CANCEL_PURCHASE_ORDER';
+  if (pathname === '/api/reports/summary') return 'VIEW_REPORTS';
+  if (pathname === '/api/reports/definitions') return 'VIEW_REPORTS';
+  if (pathname === '/api/reports/runs') return method === 'POST' ? 'RUN_REPORTS' : 'VIEW_REPORTS';
+  if (pathname.match(/^\/api\/reports\/runs\/[^/]+\/cancel$/)) return 'RUN_REPORTS';
+  if (pathname.match(/^\/api\/reports\/runs\/[^/]+\/export\.csv$/)) return 'VIEW_REPORTS';
+  if (pathname.match(/^\/api\/reports\/runs\/[^/]+\/export\.pdf$/)) return 'VIEW_REPORTS';
+  if (pathname.match(/^\/api\/reports\/runs\/[^/]+$/)) return 'VIEW_REPORTS';
+  if (pathname === '/api/platform/reports/summary') return 'VIEW_PLATFORM_REPORTS';
+  if (pathname === '/api/platform/reports/definitions') return 'VIEW_PLATFORM_REPORTS';
+  if (pathname === '/api/platform/reports/runs') return method === 'POST' ? 'RUN_PLATFORM_REPORTS' : 'VIEW_PLATFORM_REPORTS';
+  if (pathname.match(/^\/api\/platform\/reports\/runs\/[^/]+\/cancel$/)) return 'RUN_PLATFORM_REPORTS';
+  if (pathname.match(/^\/api\/platform\/reports\/runs\/[^/]+\/export\.csv$/)) return 'VIEW_PLATFORM_REPORTS';
+  if (pathname.match(/^\/api\/platform\/reports\/runs\/[^/]+\/export\.pdf$/)) return 'VIEW_PLATFORM_REPORTS';
+  if (pathname.match(/^\/api\/platform\/reports\/runs\/[^/]+$/)) return 'VIEW_PLATFORM_REPORTS';
   if (pathname === '/api/evidence' || pathname === '/api/documents') return 'VIEW_EVIDENCE';
   if (pathname.match(/^\/api\/evidence\/[^/]+$/)) return method === 'PATCH' ? 'VERIFY_EVIDENCE' : 'VIEW_EVIDENCE';
   if (pathname.match(/^\/api\/evidence\/[^/]+\/content$/)) return 'VIEW_EVIDENCE_BINARY';
@@ -443,8 +457,8 @@ function route(req, res) {
         const row = dbSelectOne('SELECT COALESCE(MAX(version),0) AS version FROM schema_migrations');
         const currentVersion = Number(row?.version ?? dbInfo.currentVersion ?? 0);
         dbOk = process.env.NODE_ENV === 'production'
-          ? dbInfo.provider === 'postgres' && currentVersion >= 23
-          : (dbInfo.provider === 'postgres' ? currentVersion >= 23 : currentVersion > 0);
+          ? dbInfo.provider === 'postgres' && currentVersion >= 24
+          : (dbInfo.provider === 'postgres' ? currentVersion >= 24 : currentVersion > 0);
         try {
           const storageProbe = probeEvidenceStorage();
           storageOk = Boolean(storageProbe?.reachable);
@@ -532,6 +546,54 @@ function route(req, res) {
         const body = parseJsonBody(req.body);
         const tenantId = body.tenantId || body.tenant_id || '';
         return sendJson(res, 201, createPlatformSupportSession(context, tenantId, body));
+      }, { context, route: url.pathname, method: req.method, requestId });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/platform/reports/summary') {
+      return sendJson(res, 200, listPlatformReportSummary(context));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/platform/reports/definitions') {
+      return sendJson(res, 200, listPlatformReportDefinitions(context));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/platform/reports/runs') {
+      return sendJson(res, 200, listPlatformReportRuns(context));
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/platform\/reports\/runs\/[^/]+$/) && !url.pathname.match(/\/(cancel|export\.csv|export\.pdf)$/)) {
+      const runId = url.pathname.split('/')[5];
+      return sendJson(res, 200, getPlatformReportRun(context, runId));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/platform/reports/runs') {
+      return handleJson(req, res, () => sendJson(res, 200, runPlatformReport(context, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method, requestId });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/platform\/reports\/runs\/[^/]+\/cancel$/)) {
+      const runId = url.pathname.split('/')[5];
+      return handleJson(req, res, () => sendJson(res, 200, cancelPlatformReportRun(context, runId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method, requestId });
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/platform\/reports\/runs\/[^/]+\/export\.csv$/)) {
+      const runId = url.pathname.split('/')[5];
+      return handleJson(req, res, () => {
+        const result = exportPlatformReportRunCsv(context, runId);
+        const exportRow = result.export || {};
+        const body = exportRow.content_text || '';
+        res.writeHead(200, {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${exportRow.file_name || `${runId}.csv`}"`,
+          ...SECURITY_HEADERS
+        });
+        res.end(body);
+      }, { context, route: url.pathname, method: req.method, requestId });
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/platform\/reports\/runs\/[^/]+\/export\.pdf$/)) {
+      const runId = url.pathname.split('/')[5];
+      return handleJson(req, res, () => {
+        const result = exportPlatformReportRunPdf(context, runId);
+        const exportRow = result.export || {};
+        const body = exportRow.content_blob || Buffer.from(exportRow.content_text || '', 'utf8');
+        res.writeHead(200, {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${exportRow.file_name || `${runId}.pdf`}"`,
+          ...SECURITY_HEADERS
+        });
+        res.end(body);
       }, { context, route: url.pathname, method: req.method, requestId });
     }
     if (req.method === 'PATCH' && url.pathname.match(/^\/api\/platform\/tenants\/[^/]+\/subscription$/)) {
@@ -700,6 +762,54 @@ function route(req, res) {
     }
     if (req.method === 'GET' && url.pathname === '/api/procurement/advisory') {
       return sendJson(res, 200, getProcurementAdvisory(context, Object.fromEntries(url.searchParams.entries())));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/reports/summary') {
+      return sendJson(res, 200, listReportSummary(context));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/reports/definitions') {
+      return sendJson(res, 200, listReportDefinitions(context));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/reports/runs') {
+      return sendJson(res, 200, listReportRuns(context));
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/reports\/runs\/[^/]+$/) && !url.pathname.match(/\/(cancel|export\.csv|export\.pdf)$/)) {
+      const runId = url.pathname.split('/')[4];
+      return sendJson(res, 200, getReportRun(context, runId));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/reports/runs') {
+      return handleJson(req, res, () => sendJson(res, 200, runReport(context, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method, requestId });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/reports\/runs\/[^/]+\/cancel$/)) {
+      const runId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, cancelReportRun(context, runId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method, requestId });
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/reports\/runs\/[^/]+\/export\.csv$/)) {
+      const runId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => {
+        const result = exportReportRunCsv(context, runId);
+        const exportRow = result.export || {};
+        const body = exportRow.content_text || '';
+        res.writeHead(200, {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${exportRow.file_name || `${runId}.csv`}"`,
+          ...SECURITY_HEADERS
+        });
+        res.end(body);
+      }, { context, route: url.pathname, method: req.method, requestId });
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/reports\/runs\/[^/]+\/export\.pdf$/)) {
+      const runId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => {
+        const result = exportReportRunPdf(context, runId);
+        const exportRow = result.export || {};
+        const body = exportRow.content_blob || Buffer.from(exportRow.content_text || '', 'utf8');
+        res.writeHead(200, {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${exportRow.file_name || `${runId}.pdf`}"`,
+          ...SECURITY_HEADERS
+        });
+        res.end(body);
+      }, { context, route: url.pathname, method: req.method, requestId });
     }
     if (req.method === 'GET' && url.pathname === '/api/procure-to-pay/summary') {
       return handleJson(req, res, () => sendJson(res, 200, getProcureToPaySummary(context)), { context, route: url.pathname, method: req.method, requestId });

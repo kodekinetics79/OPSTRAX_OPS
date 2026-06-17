@@ -201,7 +201,8 @@ async function checkModulePages(page, port) {
     { navText: 'Integration Center', expectText: ['Integration', 'Connection'] },
     { navText: 'DeviceOps Center', expectText: ['Device', 'Trusted'] },
     { navText: 'Offline Sync', expectText: ['Offline', 'Sync'] },
-    { navText: 'AI Operations', expectText: ['AI Operations', 'Provider not configured', 'Advisory'] }
+    { navText: 'AI Operations', expectText: ['AI Operations', 'Provider not configured', 'Advisory'] },
+    { navText: 'Reports', expectText: ['Reports Center', 'Report Catalog', 'Recent Runs'] }
   ];
 
   for (const mod of modules) {
@@ -226,6 +227,28 @@ async function checkModulePages(page, port) {
     await page.waitForTimeout(250);
     await page.screenshot({ path: join(screenshotDir, `${slug(mod.navText)}.png`), fullPage: false });
   }
+
+  await check('Reports center can run and open a governed report', async () => {
+    const runButton = page.locator('button[data-action="run-report"]').first();
+    if ((await runButton.count()) === 0) throw new Error('Report run button missing');
+    await runButton.evaluate((el) => el.click());
+    await page.waitForFunction(() => document.querySelectorAll('tr[data-report-run]').length > 0, null, { timeout: 5000 });
+    const openButton = page.locator('tr[data-report-run] button[data-drawer-focus="report-run"]').first();
+    if ((await openButton.count()) === 0) throw new Error('Report run open button missing');
+    await openButton.evaluate((el) => el.click());
+    await page.waitForSelector('.drawer-shell', { timeout: 5000 });
+    await page.locator('button[data-drawer-tab="Actions"]').first().evaluate((el) => el.click());
+    const drawerText = await page.textContent('.drawer-shell');
+    for (const needle of ['Download CSV', 'Download PDF']) {
+      if (!drawerText.includes(needle)) throw new Error(`Missing report drawer section: ${needle}`);
+    }
+    await page.locator('button[data-drawer-tab="Audit trail"]').first().evaluate((el) => el.click());
+    const auditText = await page.textContent('.drawer-shell');
+    if (!auditText.includes('Audit trail')) throw new Error('Missing report audit trail section');
+  });
+
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: join(screenshotDir, 'reports-center-drawer.png'), fullPage: false });
 
   await check('Procure-to-Pay invoice drawer exposes extraction and matching panels', async () => {
     const nav = page.locator('.nav-item').filter({ hasText: /Invoice Intelligence/i }).first();
@@ -291,6 +314,11 @@ async function checkRestrictedTenant(browser, port) {
   await check('Evostel does not show Procurement Center', async () => {
     const text = await page.textContent('#app');
     if (text.includes('Procurement Center')) throw new Error('Procurement Center should be hidden');
+  });
+
+  await check('Evostel still sees the permitted Reports module', async () => {
+    const text = await page.textContent('#app');
+    if (!text.includes('Reports')) throw new Error('Reports should remain visible');
   });
 
   await check('Evostel shows Audit Trail', async () => {

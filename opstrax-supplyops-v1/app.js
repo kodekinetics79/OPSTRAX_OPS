@@ -26,6 +26,7 @@ export const state = {
   integrationDetails: {},
   procurementDetails: {},
   p2pDetails: {},
+  reportDetails: {},
   p2pInvoiceLineDraft: null,
   procurementLineDraft: null,
   requestDetails: {},
@@ -768,6 +769,7 @@ export function buildDrawerModel() {
   const exportBatchDetail = focus.type === 'export-batch' ? state.exportDetails?.[`export-batch:${focus.id}`] || null : null;
   const exportConnectionDetail = focus.type === 'integration-connection' ? state.integrationDetails?.[`integration-connection:${focus.id}`] || null : null;
   const exportJobDetail = focus.type === 'integration-job' ? state.integrationDetails?.[`integration-job:${focus.id}`] || null : null;
+  const reportDetail = focus.type === 'report-run' ? state.reportDetails?.[focus.id] || null : null;
   const integrationSummary = data.integrations?.summary?.summary || {};
   const integrationConnections = data.integrations?.connections?.connections || [];
   const integrationJobs = data.integrations?.jobs?.jobs || [];
@@ -1161,6 +1163,25 @@ export function buildDrawerModel() {
       `Finished: ${row.finished_at || 'Not finished'}`,
       `Last error: ${row.last_error || 'None'}`
     ] : ['No integration job found for the current tenant.'];
+  } else if (focus.type === 'report-run') {
+    const row = reportDetail?.run || null;
+    detailTitle = row ? row.report_title : 'Report run';
+    detailLines = row ? [
+      `Report key: ${row.report_key}`,
+      `Category: ${row.report_category}`,
+      `Module page: ${row.module_page}`,
+      `Surface: ${row.surface}`,
+      `Format: ${row.format}`,
+      `Status: ${row.status}`,
+      `Rows: ${row.row_count}`,
+      `Filters: ${row.filters_json || '{}'}`,
+      `Started: ${row.started_at || 'Not started'}`,
+      `Completed: ${row.completed_at || 'Not completed'}`,
+      `Cancelled: ${row.cancelled_at || 'No'}`,
+      `Output: ${row.output_file_name || 'Not generated'}`,
+      `Exports: ${(reportDetail?.exports || []).length}`,
+      `Audit events: ${(reportDetail?.audit || []).length}`
+    ] : ['No report run found for the current workspace.'];
   } else if (focus.type === 'export-summary') {
     detailTitle = 'FinanceSync readiness';
     detailLines = [
@@ -1216,6 +1237,7 @@ export function buildDrawerModel() {
     exportBatchDetail,
     exportConnectionDetail,
     exportJobDetail,
+    reportDetail,
     integrationSummary,
     integrationConnections,
     integrationJobs,
@@ -1476,6 +1498,13 @@ function shellDrawer() {
   const p2pInvoiceAudit = p2pInvoice ? drawer.auditRows.filter((row) => row.entity_type === 'vendor_invoice' && row.entity_id === p2pInvoice.id) : drawer.auditRows;
   const p2pRfqAudit = p2pRfq ? drawer.auditRows.filter((row) => row.entity_type === 'rfq_request' && row.entity_id === p2pRfq.id) : drawer.auditRows;
   const p2pQuoteAudit = p2pQuote ? drawer.auditRows.filter((row) => row.entity_type === 'vendor_quote' && row.entity_id === p2pQuote.id) : drawer.auditRows;
+  const reportRun = drawer.focus.type === 'report-run'
+    ? drawer.reportDetail?.run || drawer.reportDetail?.report || drawer.reportDetail?.runDetail || { id: drawer.focus.id, status: 'COMPLETED', report_title: 'Report run' }
+    : null;
+  const reportRunRows = drawer.focus.type === 'report-run' ? drawer.reportDetail?.rows || [] : [];
+  const reportRunColumns = drawer.focus.type === 'report-run' ? drawer.reportDetail?.columns || [] : [];
+  const reportRunExports = drawer.focus.type === 'report-run' ? drawer.reportDetail?.exports || [] : [];
+  const reportRunAudit = drawer.focus.type === 'report-run' ? drawer.reportDetail?.audit || drawer.auditRows.filter((row) => row.entity_type === 'report_run' && row.entity_id === drawer.focus.id) : drawer.auditRows;
   const exportBatch = drawer.focus.type === 'export-batch' ? drawer.exportBatchDetail?.batch || drawer.exportBatches.find((item) => item.id === drawer.focus.id) || null : null;
   const exportBatchErrors = drawer.focus.type === 'export-batch' ? drawer.exportBatchDetail?.errors || drawer.exportErrors.filter((row) => row.export_batch_id === drawer.focus.id) : [];
   const exportBatchEvidence = drawer.focus.type === 'export-batch' ? drawer.exportBatchDetail?.evidenceLinks || [] : [];
@@ -1541,6 +1570,16 @@ function shellDrawer() {
       actions.push(`<button class="ghost red" data-action="cancel-integration-job" data-id="${h(integrationJob.id)}" type="button">Cancel Job</button>`);
     }
     return actions.length ? actions.join('') : '<div class="empty-state compact-empty">No integration job actions are available for this state.</div>';
+  })() : '';
+  const reportRunActions = reportRun ? (() => {
+    const actions = [];
+    if (can('run_reports') && ['QUEUED', 'RUNNING'].includes(reportRun.status)) {
+      actions.push(`<button class="ghost red" data-action="cancel-report-run" data-id="${h(reportRun.id)}" type="button">Cancel Run</button>`);
+    }
+    actions.push(`<button class="ghost" data-action="download-report-csv" data-id="${h(reportRun.id)}" type="button">Download CSV</button>`);
+    actions.push(`<button class="ghost" data-action="download-report-pdf" data-id="${h(reportRun.id)}" type="button">Download PDF</button>`);
+    actions.push('<div class="empty-state compact-empty">Reports are generated by the backend and exported through controlled handlers. No client-side export logic is used.</div>');
+    return actions.join('');
   })() : '';
   const warehouseTaskActions = warehouseTask ? (() => {
     const actions = [];
@@ -2342,6 +2381,26 @@ function shellDrawer() {
               <div class="drawer-row"><strong>Batch</strong><span>${h(integrationJob.batch_no || integrationJob.export_batch_id || 'Unlinked')}</span></div>
               <div class="drawer-row"><strong>Queued</strong><span>${h(integrationJob.queued_at || 'Not queued')}</span></div>
             ` : ''}
+            ${reportRun ? `
+              <div class="section-divider"></div>
+              <div class="drawer-title">Report run</div>
+              <div class="drawer-row"><strong>Report</strong><span>${h(reportRun.report_title)}</span></div>
+              <div class="drawer-row"><strong>Surface</strong><span>${h(reportRun.surface)} · ${h(reportRun.format)}</span></div>
+              <div class="drawer-row"><strong>Status</strong><span>${badge(reportRun.status)}</span></div>
+              <div class="drawer-row"><strong>Rows</strong><span>${h(reportRun.row_count)}</span></div>
+              <div class="drawer-row"><strong>Exports</strong><span>${h(reportRunExports.length)}</span></div>
+              ${reportRunRows.length && reportRunColumns.length ? `
+                <div class="section-divider"></div>
+                <div class="drawer-title">Preview rows</div>
+                <div class="table-wrap">
+                  ${table(reportRunRows.slice(0, 5), reportRunColumns.map((column) => column.label || column.key), (row) => `
+                    <tr>
+                      ${reportRunColumns.map((column) => `<td>${h(row[column.key])}</td>`).join('')}
+                    </tr>
+                  `)}
+                </div>
+              ` : '<div class="empty-state compact-empty">No preview rows are available for this report run.</div>'}
+            ` : ''}
             ${exportSummary ? `
               <div class="section-divider"></div>
               <div class="drawer-title">Readiness</div>
@@ -2370,6 +2429,7 @@ function shellDrawer() {
               ${exportErrorActions || ''}
               ${integrationConnectionActions || ''}
               ${integrationJobActions || ''}
+              ${reportRunActions || ''}
               ${evidenceActions || ''}
               ${receivingActions || ''}
               <button class="ghost" data-action="refresh" type="button">Refresh data</button>
@@ -2492,12 +2552,12 @@ function shellDrawer() {
         ${activeTab === 'Audit trail' ? `
           <div class="drawer-stack">
             <div class="drawer-title">Recent audit trail</div>
-            ${(exportBatch ? exportBatchAudit : integrationConnection ? integrationConnectionAudit : integrationJob ? integrationJobAudit : evidenceRecord ? evidenceAudit : receivingSession ? receivingAudit : p2pInvoice ? p2pInvoiceAudit : p2pRfq ? p2pRfqAudit : p2pQuote ? p2pQuoteAudit : procurementContract ? procurementContractAudit : procurementBudget ? procurementBudgetAudit : procurementWaiver ? procurementWaiverAudit : procurementRequest ? procurementRequestAudit : procurementOrder ? procurementOrderAudit : procurementVendor ? procurementVendorAudit : warehouseTask ? warehouseTaskAudit : requestAudit).length ? (exportBatch ? exportBatchAudit : integrationConnection ? integrationConnectionAudit : integrationJob ? integrationJobAudit : evidenceRecord ? evidenceAudit : receivingSession ? receivingAudit : p2pInvoice ? p2pInvoiceAudit : p2pRfq ? p2pRfqAudit : p2pQuote ? p2pQuoteAudit : procurementContract ? procurementContractAudit : procurementBudget ? procurementBudgetAudit : procurementWaiver ? procurementWaiverAudit : procurementRequest ? procurementRequestAudit : procurementOrder ? procurementOrderAudit : procurementVendor ? procurementVendorAudit : warehouseTask ? warehouseTaskAudit : requestAudit).slice(0, 5).map((row) => `
+            ${(reportRun ? reportRunAudit : exportBatch ? exportBatchAudit : integrationConnection ? integrationConnectionAudit : integrationJob ? integrationJobAudit : evidenceRecord ? evidenceAudit : receivingSession ? receivingAudit : p2pInvoice ? p2pInvoiceAudit : p2pRfq ? p2pRfqAudit : p2pQuote ? p2pQuoteAudit : procurementContract ? procurementContractAudit : procurementBudget ? procurementBudgetAudit : procurementWaiver ? procurementWaiverAudit : procurementRequest ? procurementRequestAudit : procurementOrder ? procurementOrderAudit : procurementVendor ? procurementVendorAudit : warehouseTask ? warehouseTaskAudit : requestAudit).length ? (reportRun ? reportRunAudit : exportBatch ? exportBatchAudit : integrationConnection ? integrationConnectionAudit : integrationJob ? integrationJobAudit : evidenceRecord ? evidenceAudit : receivingSession ? receivingAudit : p2pInvoice ? p2pInvoiceAudit : p2pRfq ? p2pRfqAudit : p2pQuote ? p2pQuoteAudit : procurementContract ? procurementContractAudit : procurementBudget ? procurementBudgetAudit : procurementWaiver ? procurementWaiverAudit : procurementRequest ? procurementRequestAudit : procurementOrder ? procurementOrderAudit : procurementVendor ? procurementVendorAudit : warehouseTask ? warehouseTaskAudit : requestAudit).slice(0, 5).map((row) => `
               <div class="drawer-row">
                 <strong>${h(row.action)}</strong>
                 <span>${h(row.summary)} · ${fmt(row.created_at)}</span>
               </div>
-            `).join('') : `<div class="empty-state compact-empty">${exportBatch ? 'No audit records for this export batch yet.' : integrationConnection ? 'No audit records for this integration connection yet.' : integrationJob ? 'No audit records for this integration job yet.' : evidenceRecord ? 'No audit records for this evidence record yet.' : receivingSession ? 'No audit records for this receiving session yet.' : p2pInvoice ? 'No audit records for this invoice yet.' : p2pRfq ? 'No audit records for this RFQ yet.' : p2pQuote ? 'No audit records for this quote yet.' : procurementContract ? 'No audit records for this contract yet.' : procurementBudget ? 'No audit records for this budget yet.' : procurementWaiver ? 'No audit records for this waiver yet.' : procurementRequest ? 'No audit records for this purchase request yet.' : procurementOrder ? 'No audit records for this purchase order yet.' : procurementVendor ? 'No audit records for this vendor yet.' : request ? 'No audit records for this request yet.' : warehouseTask ? 'No audit records for this task yet.' : 'No audit records loaded.'}</div>`}
+            `).join('') : `<div class="empty-state compact-empty">${reportRun ? 'No audit records for this report run yet.' : exportBatch ? 'No audit records for this export batch yet.' : integrationConnection ? 'No audit records for this integration connection yet.' : integrationJob ? 'No audit records for this integration job yet.' : evidenceRecord ? 'No audit records for this evidence record yet.' : receivingSession ? 'No audit records for this receiving session yet.' : p2pInvoice ? 'No audit records for this invoice yet.' : p2pRfq ? 'No audit records for this RFQ yet.' : p2pQuote ? 'No audit records for this quote yet.' : procurementContract ? 'No audit records for this contract yet.' : procurementBudget ? 'No audit records for this budget yet.' : procurementWaiver ? 'No audit records for this waiver yet.' : procurementRequest ? 'No audit records for this purchase request yet.' : procurementOrder ? 'No audit records for this purchase order yet.' : procurementVendor ? 'No audit records for this vendor yet.' : request ? 'No audit records for this request yet.' : warehouseTask ? 'No audit records for this task yet.' : 'No audit records loaded.'}</div>`}
           </div>
         ` : ''}
         ${activeTab === 'AI help' ? `
@@ -3542,6 +3602,20 @@ async function loadReceivingDetail(sessionId) {
   return detail;
 }
 
+async function loadReportDetail(runId) {
+  if (!runId) return null;
+  let detail = null;
+  try {
+    detail = await api(`/api/reports/runs/${runId}`);
+  } catch (error) {
+    if (![403, 404].includes(error.status)) throw error;
+  }
+  if (detail) {
+    state.reportDetails = { ...(state.reportDetails || {}), [runId]: detail };
+  }
+  return detail;
+}
+
 async function loadProcurementDetail(focusType, id) {
   if (!focusType || !id) return null;
   const key = `${focusType}:${id}`;
@@ -3633,6 +3707,14 @@ async function refreshWithReceivingDetail(sessionId = state.drawerFocus?.id) {
   }
 }
 
+async function refreshWithReportDetail(runId = state.drawerFocus?.id) {
+  await loadData();
+  if (runId) {
+    await loadReportDetail(runId);
+    render();
+  }
+}
+
 async function refreshWithExportDetail(focusType = state.drawerFocus?.type, id = state.drawerFocus?.id) {
   await loadData();
   if (focusType && id) {
@@ -3660,6 +3742,7 @@ async function refreshWithProcureToPayDetail(focusType = state.drawerFocus?.type
 async function loadPlatformData() {
   state.loading = true;
   state.error = '';
+  state.reportDetails = {};
   state.platformData = {};
   render();
   try {
@@ -3680,6 +3763,11 @@ async function loadPlatformData() {
       safeApi('/api/platform/security-events'),
       safeApi('/api/platform/billing-events'),
       safeApi('/api/platform/support-sessions')
+    ]);
+    const [reportsSummary, reportsDefinitions, reportsRuns] = await Promise.all([
+      safeApi('/api/platform/reports/summary'),
+      safeApi('/api/platform/reports/definitions'),
+      safeApi('/api/platform/reports/runs')
     ]);
     let tenantDetail = null;
     let tenantUsers = null;
@@ -3710,7 +3798,12 @@ async function loadPlatformData() {
       tenantUsage: tenantUsage?.usage || null,
       tenantUsageHistory: tenantUsage?.history || [],
       tenantHealth: tenantHealth?.health || null,
-      tenantHealthHistory: tenantHealth?.history || []
+      tenantHealthHistory: tenantHealth?.history || [],
+      reports: {
+        summary: reportsSummary || null,
+        definitions: reportsDefinitions || null,
+        runs: reportsRuns || null
+      }
     };
   } catch (error) {
     if (error.status === 401) {
@@ -3756,6 +3849,7 @@ async function loadData() {
   state.requestLineDraft = null;
   state.availableRequestItems = null;
   state.p2pDetails = {};
+  state.reportDetails = {};
   render();
   try {
     state.authBootstrap = await api('/api/auth/bootstrap');
@@ -3830,6 +3924,9 @@ async function loadData() {
       complianceSecurityPosture: '/api/compliance/security-posture',
       complianceAvailabilityPosture: '/api/compliance/availability-posture',
       availableRequestItems: '/api/requests/available-items',
+      reportsSummary: '/api/reports/summary',
+      reportsDefinitions: '/api/reports/definitions',
+      reportsRuns: '/api/reports/runs',
       aiSummary: '/api/ai/summary',
       aiRecommendations: '/api/ai/recommendations',
       aiRuns: '/api/ai/runs',
@@ -3885,6 +3982,11 @@ async function loadData() {
       rfqRequests: extra.procureToPayRfqs,
       vendorQuotes: extra.procureToPayQuotes,
       vendorScorecards: extra.procureToPayScorecards
+    };
+    extra.reports = {
+      summary: extra.reportsSummary,
+      definitions: extra.reportsDefinitions,
+      runs: extra.reportsRuns
     };
     extra.exports = {
       summary: extra.exportsSummary,
@@ -4037,19 +4139,21 @@ function sidebar() {
   `;
 }
 
-function hero() {
+function hero(titleOverride = '', descriptionOverride = '') {
   const tenant = activeTenant();
   const user = currentUser();
   const summary = state.bootstrap?.summary?.compliance || {};
   const summaryState = shellSummary();
   const workQueue = Number(summaryState.openRequests || 0) + Number(summaryState.purchaseQueue || 0) + Number(summaryState.offlineBatches || 0);
   const readiness = Number(summary.auditCoverage || 0) >= 95 && Number(summary.exportReady || 0) >= 90 ? 'Audit-backed' : 'Review required';
+  const title = titleOverride || 'OpsTrax SupplyOps';
+  const description = descriptionOverride || `${SECTION_NOTE[state.page] || 'Live operational control with tenant-scoped data, approvals, audit logs, and compliance checks.'} Workspace: ${tenant?.name || 'OpsTrax tenant'}.`;
   return `
     <section class="hero">
       <div class="hero-copy">
         <div class="eyebrow">${h(tenant?.industry || 'Controlled facility operations')}</div>
-        <h1>OpsTrax SupplyOps</h1>
-        <p>${h(SECTION_NOTE[state.page] || 'Live operational control with tenant-scoped data, approvals, audit logs, and compliance checks.')} Workspace: ${h(tenant?.name || 'OpsTrax tenant')}.</p>
+        <h1>${h(title)}</h1>
+        <p>${h(description)}</p>
         <div class="chip-row">
           <span class="chip">Workspace: ${h(tenant?.name || '')}</span>
           <span class="chip">Environment: Operational</span>
@@ -7156,25 +7260,106 @@ function aiPage() {
 }
 
 export function reportsPage() {
-  const cards = [
-    ['Inventory On Hand', 'Filter by item, category, bin, and facility.', 'Export CSV'],
-    ['Low Stock', 'Prioritize replenishment and purchase requests.', 'Export CSV'],
-    ['Inventory Movement', 'Receipts, issues, transfers, and adjustments.', 'Export CSV'],
-    ['Request Status', 'Request lifecycle from submitted through issued.', 'Export CSV'],
-    ['Purchase Activity', 'Purchase requests and approval posture.', 'Export CSV'],
-    ['Audit Activity', 'Recent immutable actions across the tenant.', 'Export CSV']
+  const reports = state.data?.reports || {};
+  const summary = reports.summary || {};
+  const definitions = reports.definitions?.definitions || [];
+  const recentRuns = reports.runs?.runs || [];
+  const groupedReports = definitions.reduce((groups, definition) => {
+    const key = definition.category || 'Reports';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(definition);
+    return groups;
+  }, {});
+  const kpis = [
+    { label: 'Available reports', value: summary.availableReports ?? definitions.length },
+    { label: 'Recent runs', value: summary.totalRuns ?? recentRuns.length },
+    { label: 'Completed', value: summary.completedRuns ?? 0 },
+    { label: 'Failed', value: summary.failedRuns ?? 0 },
+    { label: 'Exports', value: summary.recentExports ?? 0 },
+    { label: 'Last run', value: summary.latestRunAt ? fmt(summary.latestRunAt) : 'No runs yet' }
   ];
   return `
-    ${hero()}
-    <section class="grid-3">
-      ${cards.map(([title, detail, action]) => `
-        <div class="panel compact">
-          <h3 class="subhead">${h(title)}</h3>
-          <p class="muted">${h(detail)}</p>
-          <button class="ghost" type="button">${h(action)}</button>
+    ${hero('Reports Center', 'Executive reporting catalog with backend-owned runs, CSV/PDF exports, and tenant-safe audit-backed output.')}
+    <section class="status-strip">
+      ${kpis.map((kpi) => `
+        <div class="status-card compact neutral">
+          <span>${h(kpi.label)}</span>
+          <strong>${h(kpi.value)}</strong>
         </div>
       `).join('')}
     </section>
+    <section class="split">
+      <div class="panel">
+        <div class="section-head">
+          <div>
+            <h2>Report Catalog</h2>
+            <p>Choose a governed report, run it from the backend, and export the result.</p>
+          </div>
+        </div>
+        ${Object.entries(groupedReports).map(([category, items]) => `
+          <div class="section-block">
+            <div class="section-head compact-head">
+              <div>
+                <h3>${h(category)}</h3>
+                <p class="muted">${items.length} report definition(s)</p>
+              </div>
+            </div>
+            <div class="grid-2">
+              ${items.map((report) => `
+                <article class="landing-card" data-report-key="${h(report.report_key)}">
+                  <div class="landing-card-head">
+                    <div>
+                      <div class="eyebrow">${h(report.module_page || 'Reports')}</div>
+                      <strong>${h(report.title)}</strong>
+                    </div>
+                    <span class="chip">${h(report.default_format || 'CSV')}</span>
+                  </div>
+                  <p>${h(report.description)}</p>
+                  <div class="actions-row">
+                    <button class="primary" type="button" data-action="run-report" data-report-key="${h(report.report_key)}" data-format="CSV">Run CSV</button>
+                    <button class="ghost" type="button" data-action="run-report" data-report-key="${h(report.report_key)}" data-format="PDF">Run PDF</button>
+                  </div>
+                </article>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="panel">
+        <div class="section-head">
+          <div>
+            <h2>Recent Runs</h2>
+            <p>Open a run to review result rows, exports, and audit history.</p>
+          </div>
+        </div>
+        ${recentRuns.length ? table(recentRuns, ['Run', 'Report', 'Status', 'Rows', 'Format', 'Action'], (run) => `
+          <tr data-report-run="${h(run.id)}">
+            <td><strong>${h(run.run_no)}</strong><div class="muted">${h(fmt(run.created_at))}</div></td>
+            <td>${h(run.report_title)}</td>
+            <td>${badge(run.status)}</td>
+            <td>${h(run.row_count)}</td>
+            <td>${h(run.format)}</td>
+            <td>
+              <button class="ghost small" type="button" data-drawer-focus="report-run" data-drawer-id="${h(run.id)}" data-drawer-open="true">Open</button>
+            </td>
+          </tr>
+        `) : '<div class="empty-state">No report runs yet. Run a report from the catalog to generate audit-backed output.</div>'}
+      </div>
+    </section>
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2>Export Promise</h2>
+          <p>Reports are generated by the backend and exported as CSV or PDF with tenant-scoped audit trails.</p>
+        </div>
+      </div>
+      <div class="grid-3">
+        <div class="metric-card compact"><span>Tenant safe</span><strong>Yes</strong></div>
+        <div class="metric-card compact"><span>Audit-backed</span><strong>Yes</strong></div>
+        <div class="metric-card compact"><span>PDF export</span><strong>Available</strong></div>
+      </div>
+    </section>
+    ${shellDrawer()}
   `;
 }
 
@@ -7335,6 +7520,9 @@ if (typeof document !== 'undefined') {
       }
       if (state.drawerFocus.type === 'receive-session') {
         await loadReceivingDetail(state.drawerFocus.id);
+      }
+      if (state.drawerFocus.type === 'report-run') {
+        await loadReportDetail(state.drawerFocus.id);
       }
       if (['export-batch', 'integration-connection', 'integration-job'].includes(state.drawerFocus.type)) {
         await loadExportDetail(state.drawerFocus.type, state.drawerFocus.id);
@@ -7644,6 +7832,51 @@ if (typeof document !== 'undefined') {
         await api(`/api/procurement/purchase-orders/${button.dataset.id}/cancel`, { method: 'POST', body: { reason: button.dataset.reason || 'Cancelled from drawer' } });
         toast('Purchase order cancelled.');
         await refreshWithProcurementDetail('purchase-order', button.dataset.id);
+        return;
+      }
+      if (action === 'run-report') {
+        const reportKey = button.dataset.reportKey || '';
+        const format = button.dataset.format || 'CSV';
+        const result = await api('/api/reports/runs', { method: 'POST', body: { reportKey, format } });
+        toast('Report run completed.');
+        state.drawerFocus = { type: 'report-run', id: result.run.id };
+        state.drawerOpen = true;
+        await loadReportDetail(result.run.id);
+        render();
+        return;
+      }
+      if (action === 'cancel-report-run') {
+        await api(`/api/reports/runs/${button.dataset.id}/cancel`, { method: 'POST', body: { reason: 'Cancelled from report drawer' } });
+        toast('Report run cancelled.');
+        await refreshWithReportDetail(button.dataset.id);
+        return;
+      }
+      if (action === 'download-report-csv') {
+        const response = await fetch(`/api/reports/runs/${button.dataset.id}/export.csv`, { credentials: 'include' });
+        if (!response.ok) throw new Error(`CSV export failed (${response.status})`);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `report-${button.dataset.id}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+        toast('CSV export downloaded.');
+        await refreshWithReportDetail(button.dataset.id);
+        return;
+      }
+      if (action === 'download-report-pdf') {
+        const response = await fetch(`/api/reports/runs/${button.dataset.id}/export.pdf`, { credentials: 'include' });
+        if (!response.ok) throw new Error(`PDF export failed (${response.status})`);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `report-${button.dataset.id}.pdf`;
+        link.click();
+        URL.revokeObjectURL(url);
+        toast('PDF export downloaded.');
+        await refreshWithReportDetail(button.dataset.id);
         return;
       }
       if (action === 'p2p-upload-invoice') {
