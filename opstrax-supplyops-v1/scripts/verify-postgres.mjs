@@ -49,7 +49,7 @@ try {
   assert(runtime.provider === 'postgres', `Expected postgres provider, got ${runtime.provider}`);
   const versionRow = selectOne('SELECT COALESCE(MAX(version),0) AS version FROM schema_migrations');
   const version = Number(versionRow?.version || runtime.currentVersion || 0);
-  assert(version === 24, `Expected migration version 24, got ${version}`);
+  assert(version === 28, `Expected migration version 28, got ${version}`);
 
   const seeded = await seedIfNeeded();
   const adminCtx = buildContext('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
@@ -75,7 +75,7 @@ try {
     assert(denied, 'Cross-tenant vendor access should be denied');
   }
 
-  process.stdout.write(`[verify-postgres] OK provider=postgres version=24 seed=${seeded ? 'applied' : 'present'} procurement=${procurement.summary.vendors}\n`);
+  process.stdout.write(`[verify-postgres] OK provider=postgres version=28 seed=${seeded ? 'applied' : 'present'} procurement=${procurement.summary.vendors}\n`);
   process.exit(0);
 } catch (error) {
   process.stderr.write(`[verify-postgres] ERROR ${error.message}\n`);

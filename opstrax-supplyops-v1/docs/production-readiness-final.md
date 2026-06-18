@@ -1,9 +1,9 @@
 # OpsTrax Production Readiness Matrix — Final
 
-**Assessment date:** 2026-06-17
-**Phase:** 3L — External Services Cutover Readiness
+**Assessment date:** 2026-06-18
+**Phase:** Neon Postgres Cutover
 **Migration version:** 28
-**Test suite:** 299/299 (Phase 3L including OCR adapter, normalizer, and evidence linking tests)
+**Test suite:** 302/302 (Phase 3L-F — two consecutive clean runs; flake fixed)
 **Build:** OK
 **Security audit:** 0 high vulnerabilities
 **Local perf smoke:** 11/11 endpoints within 800ms budget
@@ -73,8 +73,9 @@ This matrix is strict. "Ready" means verified in the current codebase or validat
 | Area | Status | Notes |
 |---|---|---|
 | SQLite (local/test) | **Ready** | All migrations 001–028 applied and verified |
-| PostgreSQL provider | **Blocked** | DATABASE_URL not provided; DATABASE_PROVIDER not set |
-| Migration compatibility | **Verified in validation stack** | No SQL dialect-specific features used |
+| Neon Postgres (selected provider) | **Blocked** | DATABASE_URL not provided; Neon project not provisioned |
+| Migration compatibility | **Verified** | Postgres worker translates PRAGMA/dialect differences at runtime |
+| SSL (Neon) | **Ready** | Auto-detected from sslmode=require in DATABASE_URL |
 | Backup / restore | **Blocked** | Backup owner, schedule, and restore drill not designated |
 
 ---
@@ -145,10 +146,12 @@ This matrix is strict. "Ready" means verified in the current codebase or validat
 
 | Area | Status | Notes |
 |---|---|---|
-| Deployment platform | **Blocked** | Platform (AWS, GCP, Railway, Render, Fly.io, etc.) not designated |
+| Backend platform | **Selected — Railway** | Blocked until Railway project provisioned and env vars set |
+| Frontend platform | **Selected — Vercel** | Blocked until Vercel project provisioned and VITE_API_BASE_URL set |
+| Database provider | **Selected — Neon Postgres** | Blocked until DATABASE_URL provisioned in Railway |
 | Staging URL | **Blocked** | Staging environment not provisioned |
 | Production URL | **Blocked** | Production environment not provisioned |
-| TLS certificate | **Blocked** | Depends on deployment host |
+| TLS certificate | **Provided by Railway / Vercel** | Auto-provisioned by deployment host |
 | CI/CD pipeline | **Blocked** | Customer must define pipeline |
 
 ---
@@ -174,11 +177,12 @@ This matrix is strict. "Ready" means verified in the current codebase or validat
 | OCR adapter (AWS Textract) | **Implemented — externally blocked by credentials** |
 | OCR (local/demo) | **Production-ready** |
 | Auth / SSO | **Externally blocked — IdP credentials required** |
-| PostgreSQL | **Externally blocked — DATABASE_URL required** |
+| Neon Postgres | **Externally blocked — DATABASE_URL not provisioned in Railway** |
+| Railway backend | **Externally blocked — Railway project and env vars not provisioned** |
+| Vercel frontend | **Externally blocked — Vercel project and VITE_API_BASE_URL not provisioned** |
 | Object storage | **Externally blocked — S3 credentials required** |
 | ERP integration | **Externally blocked — ERP endpoint/credentials required** |
 | Monitoring | **Externally blocked — provider and recipients not designated** |
 | Backup / restore | **Externally blocked — owner and schedule not designated** |
-| Deployment host | **Externally blocked — host selection required** |
 
-**Overall:** Code is production-ready. Every deployment blocker is an externally-owned input that has not been provided. See `docs/external-inputs-required.md` for the precise checklist and owner for each input.
+**Overall:** Code is production-ready. Deployment architecture is selected (Railway + Vercel + Neon). Every remaining blocker is an externally-owned input that has not been provisioned. See `docs/external-inputs-required.md` and `docs/vercel-railway-deployment.md` for the precise checklist and setup guide.

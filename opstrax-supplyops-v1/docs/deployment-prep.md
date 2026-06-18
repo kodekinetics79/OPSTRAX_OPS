@@ -1,10 +1,12 @@
 # OpsTrax Deployment Prep
 
-**Last updated:** 2026-06-17 (Phase 3L — External Services Cutover Readiness)
+**Last updated:** 2026-06-18 (Neon Postgres Cutover)
 
 This document captures the production wiring for the OpsTrax release path. It documents the current runtime split, staging validation flow, and the remaining go-live blockers without overstating live readiness.
 
 **Phase 3L OCR status:** AWS Textract adapter is fully implemented (SigV4 HTTPS, sync worker bridge, AnalyzeExpense normalization, evidence document linking, human review gate). Credentials are NOT YET PROVIDED. The service runs in LOCAL OCR mode until `OCR_PROVIDER=aws_textract` and credentials are set.
+
+**Neon Postgres Cutover status:** Neon Postgres is the selected production database provider. Backend runs on Railway. Frontend runs on Vercel. `DATABASE_URL` belongs in Railway only — never in Vercel. SSL is auto-detected from `sslmode=require` in the connection string. Blocked until `DATABASE_URL` is provisioned.
 
 ## Runtime targets
 
@@ -30,22 +32,39 @@ This document captures the production wiring for the OpsTrax release path. It do
 - [ ] Restore drill ownership
 - [ ] OCR provider selection (local is fine; for AWS Textract: `OCR_ACCESS_KEY`, `OCR_SECRET_KEY`, `OCR_REGION`)
 
+## Deployment architecture (selected)
+
+| Layer | Platform | Notes |
+| --- | --- | --- |
+| Frontend | Vercel | Static bundle only — no server code |
+| Backend / API | Railway | Node.js runtime — all secrets live here |
+| Database | Neon Postgres | Pooled connection string, SSL required |
+| Object storage | S3-compatible | AWS S3 or S3-compatible provider |
+
+Full setup guide: `docs/vercel-railway-deployment.md`
+
 ## Railway / backend deployment
 
 - Run the Node backend as the primary runtime.
 - Set `NODE_ENV=production`.
-- Set `PORT` to the platform-provided port.
-- Set `DATABASE_PROVIDER=postgres` and `DATABASE_URL=...`.
+- Set `PORT` to the platform-provided port (Railway injects `$PORT` automatically).
+- Set `DATABASE_PROVIDER=postgres` and `DATABASE_URL=<Neon pooled connection string>`.
+- Neon's pooled connection string includes `?sslmode=require` — SSL is auto-detected.
 - Keep SQLite only for local/demo mode.
 - Set `EVIDENCE_STORAGE_PROVIDER=s3` and configure S3-compatible evidence storage.
+- Set `ALLOWED_ORIGINS=https://<vercel-frontend-domain>` for CORS.
+- Set `API_BASE_URL=https://<railway-backend-domain>` so frontend can resolve the API.
 - Keep `ALLOW_DEV_CONTEXT` unset in production.
-- Keep the platform admin control plane on the same backend, but with separate session cookies and separate platform OIDC settings.
+- Keep the platform admin control plane on the same backend, with separate session cookies and platform OIDC settings.
 
 ## Vercel / frontend deployment
 
-- The current RC1 release is validated as a Node-hosted experience.
-- Only split the frontend if a later packaging change requires it.
-- Do not move auth decisions into the browser.
+- Vercel hosts the compiled frontend bundle only. No server-side code runs on Vercel.
+- Set only `VITE_*` prefixed env vars in Vercel.
+- `VITE_API_BASE_URL=https://<railway-backend-domain>` — points the browser at the Railway backend.
+- `VITE_APP_ENV=staging` (or `production` for production).
+- **Do NOT put `DATABASE_URL` in Vercel.** No database connection is made from the frontend. Placing `DATABASE_URL` in Vercel exposes it to the browser bundle.
+- Do not put any secret (session keys, OIDC client secrets, S3 credentials) in Vercel.
 
 ## Required production environment variables
 

@@ -78,9 +78,12 @@ function makePostgresDb() {
   if (!databaseUrl) {
     failFast('DATABASE_URL is required when DATABASE_PROVIDER=postgres or NODE_ENV=production.');
   }
+  const pgSslEnv = String(process.env.OPSTRAX_PG_SSL || '').toLowerCase();
+  const sslFromEnv = pgSslEnv === 'true' || pgSslEnv === 'require';
+  const sslFromUrl = /sslmode=(require|verify-full|verify-ca)/.test(databaseUrl);
   const bridge = createSynchronousWorkerBridge(new URL('./postgres-db-worker.js', import.meta.url), {
     connectionString: databaseUrl,
-    ssl: String(process.env.OPSTRAX_PG_SSL || '').toLowerCase() === 'true' || String(process.env.OPSTRAX_PG_SSL || '').toLowerCase() === 'require'
+    ssl: sslFromEnv || sslFromUrl
   });
   bridge.request('init', {});
   return {
