@@ -3,7 +3,7 @@
  *
  * Supported providers (OCR_PROVIDER env var):
  *   local                       — deterministic local extractor (default, no credentials required)
- *   aws_textract                — AWS Textract (requires OCR_ACCESS_KEY, OCR_SECRET_KEY, OCR_REGION)
+ *   aws_textract                — AWS Textract via SigV4 HTTPS (requires OCR_ACCESS_KEY, OCR_SECRET_KEY, OCR_REGION)
  *   azure_document_intelligence — Azure Document Intelligence REST API (requires OCR_ENDPOINT, OCR_ACCESS_KEY, OCR_MODEL_ID)
  *   google_document_ai          — Google Document AI REST API (requires OCR_ENDPOINT, OCR_ACCESS_KEY, OCR_MODEL_ID)
  *
@@ -17,7 +17,42 @@
  * Do NOT set OCR_REQUIRED=true without providing credentials.
  *
  * Secrets are NEVER returned to callers — getOcrProviderStatus() deliberately omits them.
+ *
+ * AWS Textract calls run in a worker thread via the sync-rpc bridge so they can be called
+ * from within synchronous SQLite transactions on the main thread (same pattern as S3 evidence storage).
  */
+
+import { createSynchronousWorkerBridge } from './sync-rpc.js';
+
+// Lazy singleton — created on first Textract call, never recreated (config is stable at runtime).
+// The bridge is keyed to the config at creation time; restart the process to pick up new credentials.
+let _textractBridge = null;
+let _textractBridgeConfig = null;
+
+function getTextractBridge(config) {
+  const configKey = `${config.region}|${config.accessKey}|${config.secretKey}`;
+  if (!_textractBridge || _textractBridgeConfig !== configKey) {
+    if (_textractBridge) {
+      try { _textractBridge.close(); } catch { /* noop */ }
+    }
+    _textractBridge = createSynchronousWorkerBridge(
+      new URL('./ocr-textract-worker.js', import.meta.url),
+      {
+        config: {
+          region: config.region,
+          accessKey: config.accessKey,
+          secretKey: config.secretKey,
+          timeoutMs: config.timeoutMs
+        }
+      }
+    );
+    _textractBridgeConfig = configKey;
+  }
+  return _textractBridge;
+}
+
+// Re-export the normalizer for direct unit-testing without a worker or network.
+export { normalizeTextractExpenseResult } from './ocr-textract-worker.js';
 
 function pickEnv(env, ...names) {
   for (const name of names) {
@@ -151,46 +186,52 @@ export function extractWithLocal(invoiceData, lines = []) {
 }
 
 /**
- * AWS Textract extraction via REST (requires @aws-sdk/client-textract or manual Signature V4).
- * Returns a structured result; will return status=FAILED with safe error if credentials are absent.
- * Never logs or returns raw credential values.
+ * AWS Textract extraction via native HTTPS + SigV4 (no SDK dependency).
+ * Runs the actual HTTP call in a worker thread (sync-rpc bridge) so it can be
+ * called synchronously from within a SQLite transaction on the main thread.
  *
- * Production integration: install @aws-sdk/client-textract and replace this stub.
+ * documentRef must be one of:
+ *   { documentBase64: '<base64-encoded PDF or image bytes>' }
+ *   { s3Bucket: 'bucket', s3Key: 'path/to/invoice.pdf' }
+ *   null (→ returns FAILED with actionable message)
+ *
+ * Returns the standard OpsTrax OCR result shape.
+ * Credential values are NEVER included in any returned field.
  */
-export async function extractWithAwsTextract(config, documentRef) {
+export function extractWithAwsTextract(config, documentRef) {
   if (!config.accessKey || !config.secretKey || !config.region) {
-    return {
+    return Promise.resolve({
       provider: 'aws_textract',
       provider_run_id: '',
       overall_confidence: 0,
       proposed_fields: {},
       status: 'FAILED',
-      error: 'AWS Textract is not configured: OCR_ACCESS_KEY, OCR_SECRET_KEY, and OCR_REGION are required.'
-    };
+      error: 'AWS Textract is not configured. Provide OCR_ACCESS_KEY, OCR_SECRET_KEY, and OCR_REGION.'
+    });
   }
   try {
-    // Production integration point: use @aws-sdk/client-textract
-    // const { TextractClient, AnalyzeDocumentCommand } = await import('@aws-sdk/client-textract');
-    // const client = new TextractClient({ region: config.region, credentials: { accessKeyId: config.accessKey, secretAccessKey: config.secretKey } });
-    // const result = await client.send(new AnalyzeDocumentCommand({ Document: { S3Object: { Bucket, Name } }, FeatureTypes: ['FORMS', 'TABLES'] }));
-    // return normalizeTextractResult(result);
-    return {
+    const bridge = getTextractBridge(config);
+    const payload = {};
+    if (documentRef?.documentBase64) payload.documentBase64 = documentRef.documentBase64;
+    else if (documentRef?.s3Bucket) { payload.s3Bucket = documentRef.s3Bucket; payload.s3Key = documentRef.s3Key; }
+    const result = bridge.request('analyzeExpense', payload);
+    return Promise.resolve({
       provider: 'aws_textract',
-      provider_run_id: '',
-      overall_confidence: 0,
-      proposed_fields: {},
-      status: 'FAILED',
-      error: 'AWS Textract SDK not installed. Install @aws-sdk/client-textract and implement the production integration point in src/ocr-provider.js.'
-    };
+      provider_run_id: result.provider_run_id || '',
+      overall_confidence: result.overall_confidence ?? 0,
+      proposed_fields: result.proposed_fields || {},
+      status: result.status || 'FAILED',
+      error: result.error || null
+    });
   } catch (err) {
-    return {
+    return Promise.resolve({
       provider: 'aws_textract',
       provider_run_id: '',
       overall_confidence: 0,
       proposed_fields: {},
       status: 'FAILED',
-      error: `AWS Textract error: ${String(err.message || err).substring(0, 200)}`
-    };
+      error: `AWS Textract: ${String(err.message || '').substring(0, 200)}`
+    });
   }
 }
 

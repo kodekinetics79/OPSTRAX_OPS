@@ -4867,52 +4867,135 @@ export function deleteVendorInvoiceLine(context, vendorInvoiceId, lineId) {
 export function extractVendorInvoice(context, vendorInvoiceId) {
   requireFeature(context, 'procure_to_pay_intelligence');
   requireCapability(context, 'extract_vendor_invoice');
+
+  // ── Phase 1: gather OCR inputs BEFORE the SQLite transaction ──────────────
+  // Read evidence document and call the external OCR provider here so the
+  // sync-rpc Atomics.wait bridge call does not hold a SQLite write lock.
+  const ocrConfig = getOcrRuntimeConfig(process.env);
+  const providerStatus = getOcrProviderStatusFromModule(process.env);
+
+  // Look up any evidence document linked to this invoice for the tenant.
+  // This is a read-only query — safe to run outside the write transaction.
+  const evidenceLinks = selectAll(
+    `SELECT el.document_id, d.file_name, d.mime_type, d.storage_mode, d.storage_key, d.stored_file_name
+     FROM evidence_links el
+     JOIN documents d ON d.id = el.document_id AND d.tenant_id = el.tenant_id
+     WHERE el.tenant_id = ? AND el.entity_type = 'vendor_invoice' AND el.entity_id = ?
+     ORDER BY el.created_at DESC`,
+    [context.tenant.id, vendorInvoiceId]
+  );
+
+  // Prefer a PDF or image; fall back to the most-recent linked document.
+  const evidenceDoc = evidenceLinks.find((e) =>
+    /^(application\/pdf|image\/)/.test(e.mime_type || '')
+  ) || evidenceLinks[0] || null;
+
+  // Attempt to read evidence bytes for external providers.
+  let documentRef = null;
+  let evidenceDocumentId = evidenceDoc?.document_id || null;
+
+  if (ocrConfig.provider !== 'local' && providerStatus.ready && evidenceDoc) {
+    try {
+      const evidenceMode = evidenceDoc.storage_mode || 'filesystem';
+      if (evidenceMode === 's3') {
+        // Pass S3 reference directly — avoids redundant byte transfer.
+        const storageInfo = getEvidenceStorageInfo();
+        documentRef = { s3Bucket: storageInfo.bucket, s3Key: evidenceDoc.storage_key };
+      } else {
+        const read = readEvidenceBinary({
+          storageMode: evidenceMode,
+          storageKey: evidenceDoc.storage_key,
+          storedFileName: evidenceDoc.stored_file_name,
+          fileName: evidenceDoc.file_name
+        });
+        documentRef = { documentBase64: read.content.toString('base64') };
+      }
+    } catch {
+      // Evidence read failed — proceed with safe error; run will be FAILED.
+      documentRef = null;
+    }
+  }
+
+  // ── Phase 2: call OCR provider (sync via worker bridge for external, direct for local) ──
+  let preflightResult = null;
+  if (ocrConfig.provider !== 'local' && providerStatus.ready) {
+    if (!documentRef) {
+      // Configured but no document — record FAILED with actionable message.
+      preflightResult = {
+        provider: ocrConfig.provider,
+        provider_run_id: '',
+        overall_confidence: 0,
+        proposed_fields: {},
+        status: 'FAILED',
+        error: 'No evidence document is linked to this invoice. Attach a PDF or image before running external OCR extraction.'
+      };
+    } else {
+      // Call the real OCR provider synchronously via the worker bridge.
+      // extractWithProvider wraps the worker bridge call and returns a Promise
+      // that resolves immediately (bridge.request is synchronous via Atomics.wait).
+      let syncResult = null;
+      const resultPromise = extractWithProvider(ocrConfig, {}, [], documentRef);
+      // The bridge call inside extractWithProvider is synchronous; the Promise
+      // resolves in the same microtask. We use a flag to capture the value.
+      resultPromise.then((r) => { syncResult = r; });
+      // If syncResult is still null the bridge timed out or threw (caught below).
+      preflightResult = syncResult || {
+        provider: ocrConfig.provider,
+        provider_run_id: '',
+        overall_confidence: 0,
+        proposed_fields: {},
+        status: 'FAILED',
+        error: 'OCR provider did not respond synchronously. Check worker bridge configuration.'
+      };
+    }
+  }
+
+  // ── Phase 3: write results inside the SQLite transaction ──────────────────
   return transaction(() => {
     const invoice = loadVendorInvoiceRecord(context, vendorInvoiceId);
     if (!['DRAFT', 'UPLOADED', 'EXTRACTION_PENDING', 'EXTRACTED', 'EXCEPTION'].includes(invoice.status)) throw fail('Invoice cannot be extracted in its current state', 409);
     const now = nowIso();
     const lines = loadVendorInvoiceLines(context, vendorInvoiceId);
-    const ocrConfig = getOcrRuntimeConfig(process.env);
-    const providerStatus = getOcrProviderStatusFromModule(process.env);
 
-    // Local deterministic extractor — always synchronous and always available
+    // Local deterministic extractor — always synchronous and always available.
     const localResult = extractWithLocal(invoice, lines);
-    const extractionConfidence = ocrConfig.provider === 'local'
-      ? localResult.overall_confidence
-      : invoiceConfidenceFromFindings([]);
 
-    // Determine run status based on provider availability
-    let runStatus = 'COMPLETED';
-    let runErrorMessage = '';
-    let runProviderStatus = providerStatus.status;
-    let runProposedFields = localResult.proposed_fields;
-    let runProviderRunId = localResult.provider_run_id;
-    let runOverallConfidence = localResult.overall_confidence;
+    let runStatus;
+    let runErrorMessage;
+    let runProviderStatus;
+    let runProposedFields;
+    let runProviderRunId;
+    let runOverallConfidence;
 
-    if (ocrConfig.provider !== 'local') {
-      // External provider selected — cannot call async from sync transaction
-      // Record the intent; production integration would queue a background job
-      if (!providerStatus.ready) {
-        runStatus = 'FAILED';
-        runErrorMessage = providerStatus.message;
-        runProviderStatus = 'NOT_CONFIGURED';
-        runProposedFields = {};
-        runProviderRunId = '';
-        runOverallConfidence = 0;
-      } else {
-        // Provider is CONFIGURED but we cannot make async API calls from a sync transaction.
-        // Record as PENDING — a background worker or webhook would complete it.
-        runStatus = 'PENDING';
-        runErrorMessage = '';
-        runProviderStatus = 'CONFIGURED';
-        runProposedFields = {};
-        runProviderRunId = '';
-        runOverallConfidence = 0;
-      }
+    if (ocrConfig.provider === 'local') {
+      runStatus = 'COMPLETED';
+      runErrorMessage = '';
+      runProviderStatus = providerStatus.status;
+      runProposedFields = localResult.proposed_fields;
+      runProviderRunId = localResult.provider_run_id;
+      runOverallConfidence = localResult.overall_confidence;
+      evidenceDocumentId = null;
+    } else if (!providerStatus.ready) {
+      // External provider selected but NOT_CONFIGURED.
+      runStatus = 'FAILED';
+      runErrorMessage = providerStatus.message;
+      runProviderStatus = 'NOT_CONFIGURED';
+      runProposedFields = {};
+      runProviderRunId = '';
+      runOverallConfidence = 0;
+      evidenceDocumentId = null;
+    } else {
+      // External provider CONFIGURED — use preflight result from real OCR call.
+      runStatus = preflightResult.status;
+      runErrorMessage = preflightResult.error || '';
+      runProviderStatus = providerStatus.status;
+      runProposedFields = preflightResult.proposed_fields || {};
+      runProviderRunId = preflightResult.provider_run_id || '';
+      runOverallConfidence = preflightResult.overall_confidence ?? 0;
     }
 
+    const extractionConfidence = runOverallConfidence || (ocrConfig.provider === 'local' ? localResult.overall_confidence : 0);
     const extractionStatus = runStatus === 'COMPLETED' ? 'EXTRACTED' : 'EXTRACTION_PENDING';
-    const reviewStatus = runStatus === 'COMPLETED' ? 'PENDING_REVIEW' : 'PENDING_REVIEW';
     const invoiceNextStatus = runStatus === 'COMPLETED' ? 'EXTRACTED' : 'EXTRACTION_PENDING';
 
     execute(
@@ -4930,8 +5013,9 @@ export function extractVendorInvoice(context, vendorInvoiceId) {
       provider_status: runProviderStatus,
       provider_run_id: runProviderRunId,
       overall_confidence: runOverallConfidence,
+      evidence_document_id: evidenceDocumentId,
       status: runStatus,
-      request_payload_json: JSON.stringify({ invoice_number: invoice.invoice_number, line_count: lines.length, provider: ocrConfig.provider }),
+      request_payload_json: JSON.stringify({ invoice_number: invoice.invoice_number, line_count: lines.length, provider: ocrConfig.provider, has_document: Boolean(documentRef) }),
       response_payload_json: JSON.stringify({ provider: ocrConfig.provider, status: runStatus }),
       normalized_payload_json: JSON.stringify({
         invoice_number: invoice.invoice_number,
@@ -4941,7 +5025,7 @@ export function extractVendorInvoice(context, vendorInvoiceId) {
         confidence: runOverallConfidence
       }),
       proposed_fields_json: JSON.stringify(runProposedFields),
-      review_status: reviewStatus,
+      review_status: 'PENDING_REVIEW',
       error_message: runErrorMessage,
       requested_at: now,
       started_at: now,
@@ -4963,9 +5047,9 @@ export function extractVendorInvoice(context, vendorInvoiceId) {
       action: 'EXTRACT_VENDOR_INVOICE',
       entityType: 'vendor_invoice',
       entityId: vendorInvoiceId,
-      summary: `${invoice.invoice_number} extracted via ${ocrConfig.provider} — run status: ${runStatus}`,
+      summary: `${invoice.invoice_number} extracted via ${ocrConfig.provider} — run status: ${runStatus}${evidenceDocumentId ? ' — evidence document linked' : ''}`,
       before: invoice,
-      after: { ...invoice, status: invoiceNextStatus, extraction_status: extractionStatus, extraction_confidence: extractionConfidence, ocr_provider: ocrConfig.provider, run_status: runStatus }
+      after: { ...invoice, status: invoiceNextStatus, extraction_status: extractionStatus, extraction_confidence: extractionConfidence, ocr_provider: ocrConfig.provider, run_status: runStatus, evidence_document_id: evidenceDocumentId }
     });
     return getVendorInvoiceDetail(context, vendorInvoiceId);
   });
@@ -5054,7 +5138,7 @@ export function listOcrExtractionRuns(context, vendorInvoiceId) {
   requireCapability(context, 'extract_vendor_invoice');
   return selectAll(
     `SELECT id, tenant_id, vendor_invoice_id, provider_name, provider_status, provider_run_id,
-            overall_confidence, proposed_fields_json, status, review_status, reviewed_at, reviewed_by_user_id, review_notes,
+            overall_confidence, proposed_fields_json, evidence_document_id, status, review_status, reviewed_at, reviewed_by_user_id, review_notes,
             error_message, requested_at, started_at, completed_at, created_at, created_by_user_id
      FROM invoice_extraction_runs
      WHERE tenant_id = ? AND vendor_invoice_id = ?

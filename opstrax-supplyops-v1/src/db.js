@@ -46,7 +46,8 @@ const migrations = [
   { version: 24, file: '024_reporting_export_center.sql' },
   { version: 25, file: '025_inventory_optimization.sql' },
   { version: 26, file: '026_asset_custody_lifecycle.sql' },
-  { version: 27, file: '027_ocr_review.sql' }
+  { version: 27, file: '027_ocr_review.sql' },
+  { version: 28, file: '028_ocr_evidence_id.sql' }
 ];
 
 mkdirSync(dataDir, { recursive: true });

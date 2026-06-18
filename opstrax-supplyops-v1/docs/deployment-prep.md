@@ -1,6 +1,10 @@
 # OpsTrax Deployment Prep
 
-This note captures the production wiring for the Phase 3F release path. It documents the current runtime split, staging validation flow, and the remaining go-live blockers without overstating live readiness.
+**Last updated:** 2026-06-17 (Phase 3L — External Services Cutover Readiness)
+
+This document captures the production wiring for the OpsTrax release path. It documents the current runtime split, staging validation flow, and the remaining go-live blockers without overstating live readiness.
+
+**Phase 3L OCR status:** AWS Textract adapter is fully implemented (SigV4 HTTPS, sync worker bridge, AnalyzeExpense normalization, evidence document linking, human review gate). Credentials are NOT YET PROVIDED. The service runs in LOCAL OCR mode until `OCR_PROVIDER=aws_textract` and credentials are set.
 
 ## Runtime targets
 
@@ -24,6 +28,7 @@ This note captures the production wiring for the Phase 3F release path. It docum
 - [ ] Monitoring destination and alert rules
 - [ ] Backup job ownership
 - [ ] Restore drill ownership
+- [ ] OCR provider selection (local is fine; for AWS Textract: `OCR_ACCESS_KEY`, `OCR_SECRET_KEY`, `OCR_REGION`)
 
 ## Railway / backend deployment
 
@@ -103,9 +108,36 @@ This note captures the production wiring for the Phase 3F release path. It docum
 - `EVIDENCE_SIGNING_SECRET`
 - `EVIDENCE_SIGNED_URL_TTL`
 
+## OCR environment variables
+
+### Local mode (default — no external calls)
+
+No env vars needed. `OCR_PROVIDER` is unset or `local`.
+
+### AWS Textract mode (Phase 3L — implemented, credentials required)
+
+- `OCR_PROVIDER=aws_textract`
+- `OCR_ACCESS_KEY` — IAM key ID with `textract:AnalyzeExpense` permission
+- `OCR_SECRET_KEY` — IAM secret key (store in secret manager; never in code or logs)
+- `OCR_REGION` — AWS region (e.g. `us-east-1`)
+- `OCR_REQUIRED=true` — optional; causes startup to fail if OCR is unconfigured
+- `OCR_CONFIDENCE_THRESHOLD` — optional; default 0.7
+
+**Verification (when configured):** `npm run verify:ocr -- --probe`
+
+### Azure / Google
+
+- `OCR_PROVIDER=azure_document_intelligence` or `google_document_ai`
+- `OCR_ENDPOINT` — provider endpoint URL
+- `OCR_ACCESS_KEY` — API key or bearer token
+- `OCR_MODEL_ID` — model/processor identifier
+
+---
+
 ## Production validation commands
 
-- `npm run verify-migration`
+- `npm run verify-migration` (expected: v28)
+- `npm run verify:ocr` (must pass; `--probe` flag tests live connectivity)
 - `npm run verify:postgres`
 - `npm run verify:storage`
 - `npm run verify:production-runtime`

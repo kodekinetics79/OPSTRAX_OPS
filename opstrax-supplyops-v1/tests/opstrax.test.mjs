@@ -272,7 +272,8 @@ const {
 const {
   getOcrProviderStatus: getOcrProviderStatusDirect,
   extractWithLocal,
-  getOcrRuntimeConfig
+  getOcrRuntimeConfig,
+  normalizeTextractExpenseResult
 } = await import('../src/ocr-provider.js');
 const {
   listPlatformReportDefinitions,
@@ -325,14 +326,18 @@ async function httpRequest(path, { method = 'GET', headers = {}, body } = {}) {
   const srv = await start(0);
   try {
     const port = srv.address().port;
+    const contentHeaders = body ? { 'content-type': 'application/json' } : {};
     const response = await fetch(`http://127.0.0.1:${port}${path}`, {
       method,
-      headers,
+      headers: { connection: 'close', ...contentHeaders, ...headers },
       body: body ? JSON.stringify(body) : undefined
     });
     const payload = await response.json().catch(() => ({}));
     return { response, payload };
   } finally {
+    // closeAllConnections() (Node 18.2+) forces idle keep-alive connections to close
+    // immediately so server.close() can fire without waiting for undici pool drain.
+    server.closeAllConnections?.();
     await new Promise((resolve) => server.close(resolve));
   }
 }
@@ -542,7 +547,7 @@ test('migration upgrade advances an older database without losing tenant data', 
     }
   }).toString('utf8').trim();
   const payload = JSON.parse(result);
-  assert.equal(payload.version, 27);
+  assert.equal(payload.version, 28);
   assert.equal(payload.tables, 1);
 });
 
@@ -2396,6 +2401,16 @@ test('item detail blocks cross-tenant access', () => {
 });
 
 test('restricted tenant feature denial works', async () => {
+  // Guard: verify DB state before making the HTTP request so a failure here
+  // points directly at state corruption rather than leaving an ambiguous HTTP failure.
+  const evostelFeatures = selectAll(
+    "SELECT feature_key FROM tenant_features WHERE tenant_id = 'tenant_evostel' AND enabled = 1 ORDER BY feature_key"
+  ).map((r) => r.feature_key);
+  assert.ok(!evostelFeatures.includes('inventory_core_write'),
+    `Expected inventory_core_write to be DISABLED for tenant_evostel but found it enabled. Enabled features: ${evostelFeatures.join(', ')}`);
+  assert.ok(process.env.OPSTRAX_ALLOW_DEV_CONTEXT === '1',
+    'OPSTRAX_ALLOW_DEV_CONTEXT must be 1 for dev-context auth to work in this test');
+
   const { response, payload } = await httpRequest('/api/inventory/items', {
     method: 'POST',
     headers: {
@@ -4280,7 +4295,7 @@ test('verify-migration script exits 0 against test database', () => {
     },
     encoding: 'utf8'
   });
-  assert.ok(result.includes('OK All 27 migrations verified'), 'verify-migration must confirm all 27 migrations');
+  assert.ok(result.includes('OK All 28 migrations verified'), 'verify-migration must confirm all 28 migrations');
 });
 
 test('production 500 errors do not expose stack traces in response body', async () => {
@@ -6268,4 +6283,336 @@ test('Phase 3K release doc exists', () => {
   assert.match(content, /Phase 3K/i, 'Must reference Phase 3K');
   assert.match(content, /OCR/i, 'Must mention OCR');
   assert.match(content, /production.*readiness|readiness.*gate/i, 'Must mention production readiness gate');
+});
+
+// ── Phase 3L: Live OCR Provider Cutover ─────────────────────────────────────
+// Tests for the AWS Textract adapter, SigV4 normalizer, evidence linking,
+// error handling, and no-credential-exposure guarantees.
+
+test('normalizeTextractExpenseResult handles empty ExpenseDocuments', () => {
+  const result = normalizeTextractExpenseResult({});
+  assert.equal(result.status, 'COMPLETED', 'Empty response must produce COMPLETED (no error)');
+  assert.equal(result.overall_confidence, 0, 'Empty response must have zero confidence');
+  assert.deepEqual(result.proposed_fields, {}, 'Empty response must have empty proposed fields');
+});
+
+test('normalizeTextractExpenseResult maps INVOICE_RECEIPT_ID to invoice_number', () => {
+  const fixture = {
+    ExpenseDocuments: [{
+      SummaryFields: [
+        { Type: { Text: 'INVOICE_RECEIPT_ID' }, ValueDetection: { Text: 'INV-2026-001', Confidence: 98.5 } },
+        { Type: { Text: 'TOTAL' }, ValueDetection: { Text: '$1,234.56', Confidence: 96.0 } },
+        { Type: { Text: 'VENDOR_NAME' }, ValueDetection: { Text: 'Acme Corp', Confidence: 97.2 } },
+        { Type: { Text: 'PO_NUMBER' }, ValueDetection: { Text: 'PO-9001', Confidence: 94.0 } }
+      ],
+      LineItemGroups: []
+    }]
+  };
+  const result = normalizeTextractExpenseResult(fixture, 'req-abc123');
+  assert.equal(result.provider_run_id, 'req-abc123', 'Provider run ID must be set from requestId argument');
+  assert.equal(result.proposed_fields.invoice_number?.value, 'INV-2026-001', 'INVOICE_RECEIPT_ID must map to invoice_number');
+  assert.ok(result.proposed_fields.invoice_number.confidence > 0.9, 'Confidence must be normalized from 0–100 to 0–1');
+  assert.equal(result.proposed_fields.vendor_name?.value, 'Acme Corp', 'VENDOR_NAME must map to vendor_name');
+  assert.equal(result.proposed_fields.po_number?.value, 'PO-9001', 'PO_NUMBER must map to po_number');
+  assert.equal(result.proposed_fields.total?.value, 1234.56, 'TOTAL must be parsed to a number');
+  assert.equal(result.status, 'COMPLETED', 'Valid fields must produce COMPLETED status');
+});
+
+test('normalizeTextractExpenseResult normalizes confidence from 0-100 to 0-1', () => {
+  const fixture = {
+    ExpenseDocuments: [{
+      SummaryFields: [
+        { Type: { Text: 'INVOICE_RECEIPT_ID' }, ValueDetection: { Text: 'INV-001', Confidence: 95.0 } }
+      ],
+      LineItemGroups: []
+    }]
+  };
+  const result = normalizeTextractExpenseResult(fixture);
+  assert.ok(result.proposed_fields.invoice_number.confidence <= 1.0, 'Confidence must be in 0–1 range');
+  assert.ok(result.proposed_fields.invoice_number.confidence > 0.9, 'Confidence 95/100 must be ≈0.95');
+  assert.ok(result.overall_confidence <= 1.0, 'overall_confidence must be in 0–1 range');
+});
+
+test('normalizeTextractExpenseResult extracts line items from LineItemGroups', () => {
+  const fixture = {
+    ExpenseDocuments: [{
+      SummaryFields: [],
+      LineItemGroups: [{
+        LineItems: [{
+          LineItemExpenseFields: [
+            { Type: { Text: 'ITEM' }, ValueDetection: { Text: 'Office Chair', Confidence: 96.0 } },
+            { Type: { Text: 'QUANTITY' }, ValueDetection: { Text: '2', Confidence: 95.0 } },
+            { Type: { Text: 'UNIT_PRICE' }, ValueDetection: { Text: '$150.00', Confidence: 94.0 } },
+            { Type: { Text: 'EXPENSE_ROW' }, ValueDetection: { Text: '$300.00', Confidence: 93.0 } },
+            { Type: { Text: 'PRODUCT_CODE' }, ValueDetection: { Text: 'SKU-CHAIR-01', Confidence: 92.0 } }
+          ]
+        }]
+      }]
+    }]
+  };
+  const result = normalizeTextractExpenseResult(fixture);
+  assert.ok(Array.isArray(result.proposed_fields.lines), 'Lines must be an array');
+  assert.equal(result.proposed_fields.lines.length, 1, 'Must have 1 extracted line');
+  const line = result.proposed_fields.lines[0];
+  assert.equal(line.description, 'Office Chair', 'ITEM must map to description');
+  assert.equal(line.qty, 2, 'QUANTITY must be a number');
+  assert.equal(line.unit_price, 150.00, 'UNIT_PRICE must be parsed to number');
+  assert.equal(line.line_total, 300.00, 'EXPENSE_ROW must be parsed to number');
+  assert.equal(line.sku_reference, 'SKU-CHAIR-01', 'PRODUCT_CODE must map to sku_reference');
+});
+
+test('normalizeTextractExpenseResult keeps highest-confidence value for duplicate mapped keys', () => {
+  // ORDER_DATE and INVOICE_RECEIPT_DATE both map to invoice_date — keep highest confidence
+  const fixture = {
+    ExpenseDocuments: [{
+      SummaryFields: [
+        { Type: { Text: 'ORDER_DATE' }, ValueDetection: { Text: '2026-01-01', Confidence: 70.0 } },
+        { Type: { Text: 'INVOICE_RECEIPT_DATE' }, ValueDetection: { Text: '2026-01-15', Confidence: 95.0 } }
+      ],
+      LineItemGroups: []
+    }]
+  };
+  const result = normalizeTextractExpenseResult(fixture);
+  assert.equal(result.proposed_fields.invoice_date?.value, '2026-01-15', 'Higher-confidence INVOICE_RECEIPT_DATE must win');
+  assert.ok(result.proposed_fields.invoice_date.confidence > 0.9, 'Winning confidence must be the higher one');
+});
+
+test('normalizeTextractExpenseResult coerces currency strings to numbers', () => {
+  const fixture = {
+    ExpenseDocuments: [{
+      SummaryFields: [
+        { Type: { Text: 'SUBTOTAL' }, ValueDetection: { Text: '$1,000.50', Confidence: 97.0 } },
+        { Type: { Text: 'TAX' }, ValueDetection: { Text: '80.04', Confidence: 96.0 } },
+        { Type: { Text: 'TOTAL' }, ValueDetection: { Text: 'USD 1,080.54', Confidence: 98.0 } }
+      ],
+      LineItemGroups: []
+    }]
+  };
+  const result = normalizeTextractExpenseResult(fixture);
+  assert.equal(typeof result.proposed_fields.subtotal?.value, 'number', 'subtotal must be a number');
+  assert.equal(typeof result.proposed_fields.tax?.value, 'number', 'tax must be a number');
+  assert.equal(typeof result.proposed_fields.total?.value, 'number', 'total must be a number');
+  assert.ok(result.proposed_fields.subtotal.value > 1000, 'subtotal must parse $1,000.50 correctly');
+});
+
+test('normalizeTextractExpenseResult uses ResponseMetadata.RequestId as provider_run_id when no explicit requestId', () => {
+  const fixture = {
+    ResponseMetadata: { RequestId: 'textract-request-xyz' },
+    ExpenseDocuments: [{ SummaryFields: [], LineItemGroups: [] }]
+  };
+  const result = normalizeTextractExpenseResult(fixture);
+  assert.equal(result.provider_run_id, 'textract-request-xyz', 'Must use ResponseMetadata.RequestId as fallback run ID');
+});
+
+test('extractWithAwsTextract returns FAILED with actionable message when credentials are missing', async () => {
+  const { extractWithAwsTextract } = await import('../src/ocr-provider.js');
+  const result = await extractWithAwsTextract(
+    { provider: 'aws_textract', accessKey: '', secretKey: '', region: '', timeoutMs: 5000 },
+    null
+  );
+  assert.equal(result.status, 'FAILED', 'Missing credentials must produce FAILED status');
+  assert.ok(result.error.length > 0, 'Error message must be non-empty');
+  assert.match(result.error, /OCR_ACCESS_KEY|configured|credentials/i, 'Error must indicate missing credentials');
+  assert.ok(!result.error.includes('undefined'), 'Error must not expose internal details');
+  assert.equal(result.provider, 'aws_textract', 'Provider field must be aws_textract');
+  assert.equal(result.provider_run_id, '', 'No run ID when credentials are missing');
+  assert.equal(result.overall_confidence, 0, 'Confidence must be 0 on failure');
+});
+
+test('extractWithAwsTextract error message never contains credential values', async () => {
+  const { extractWithAwsTextract } = await import('../src/ocr-provider.js');
+  const result = await extractWithAwsTextract(
+    { provider: 'aws_textract', accessKey: 'AKIASECRETKEY123', secretKey: 'wJalrXutnFEMI/K7MDENG/bPxRfiCYSECRET', region: 'us-east-1', timeoutMs: 100 },
+    { documentBase64: 'AA==' } // minimal invalid document — will hit network but timeout fast
+  );
+  // Whether it succeeds or fails, the response must never expose credentials
+  const serialized = JSON.stringify(result);
+  assert.ok(!serialized.includes('AKIASECRETKEY123'), 'Result must not contain accessKey value');
+  assert.ok(!serialized.includes('wJalrXutnFEMI'), 'Result must not contain secretKey value');
+  assert.ok(!serialized.includes('bPxRfiCYSECRET'), 'Result must not contain secretKey value');
+});
+
+test('OCR_PROVIDER=aws_textract with missing credentials produces NOT_CONFIGURED status via getOcrProviderStatus', () => {
+  const status = getOcrProviderStatusDirect({ OCR_PROVIDER: 'aws_textract' });
+  assert.equal(status.status, 'NOT_CONFIGURED', 'Missing credentials must yield NOT_CONFIGURED');
+  assert.equal(status.ready, false, 'NOT_CONFIGURED provider must not be ready');
+  assert.match(status.message, /OCR_ACCESS_KEY|missing/i, 'Message must indicate missing credentials');
+  const serialized = JSON.stringify(status);
+  assert.ok(!serialized.includes('accessKey'), 'Status must not expose accessKey field');
+  assert.ok(!serialized.includes('secretKey'), 'Status must not expose secretKey field');
+});
+
+test('OCR_PROVIDER=aws_textract with all credentials produces CONFIGURED status', () => {
+  const status = getOcrProviderStatusDirect({
+    OCR_PROVIDER: 'aws_textract',
+    OCR_ACCESS_KEY: 'AKIAIOSFODNN7EXAMPLE',
+    OCR_SECRET_KEY: 'wJalrXutnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+    OCR_REGION: 'us-east-1'
+  });
+  assert.equal(status.status, 'CONFIGURED', 'All credentials present must yield CONFIGURED');
+  assert.equal(status.ready, true, 'CONFIGURED provider must be ready');
+  const serialized = JSON.stringify(status);
+  // Must NOT expose credential values — only presence
+  assert.ok(!serialized.includes('AKIAIOSFODNN7EXAMPLE'), 'Status must not expose access key value');
+  assert.ok(!serialized.includes('wJalrXutnFEMI'), 'Status must not expose secret key value');
+});
+
+test('OCR provider NOT_CONFIGURED when OCR_REQUIRED=false does not fail extractVendorInvoice', () => {
+  // With OCR_PROVIDER not set (or local), extraction should succeed using local deterministic extractor.
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  const invoices = listVendorInvoices(ctx);
+  const eligible = invoices.find((inv) => ['DRAFT', 'UPLOADED', 'EXTRACTION_PENDING', 'EXTRACTED', 'EXCEPTION'].includes(inv.status));
+  assert.ok(eligible, 'Must have an extractable invoice');
+  const detail = extractVendorInvoice(ctx, eligible.id);
+  assert.ok(detail.vendorInvoice, 'Extraction must return invoice detail');
+  const runs = listOcrExtractionRuns(ctx, eligible.id);
+  const latestRun = runs[0];
+  assert.ok(latestRun, 'Must have an extraction run');
+  assert.equal(latestRun.provider_name, 'Local Deterministic Extractor', 'Local provider name must be set');
+  assert.equal(latestRun.status, 'COMPLETED', 'Local extraction must be COMPLETED');
+  assert.equal(latestRun.review_status, 'PENDING_REVIEW', 'Local extraction must require human review');
+});
+
+test('extractVendorInvoice with aws_textract NOT_CONFIGURED stores FAILED run with safe error and no credentials', () => {
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  const savedProvider = process.env.OCR_PROVIDER;
+  const savedKey = process.env.OCR_ACCESS_KEY;
+  process.env.OCR_PROVIDER = 'aws_textract';
+  delete process.env.OCR_ACCESS_KEY;
+  delete process.env.OCR_SECRET_KEY;
+  delete process.env.OCR_REGION;
+  try {
+    const invoices = listVendorInvoices(ctx);
+    const eligible = invoices.find((inv) => ['DRAFT', 'UPLOADED', 'EXTRACTION_PENDING', 'EXTRACTED', 'EXCEPTION'].includes(inv.status));
+    assert.ok(eligible, 'Must have an extractable invoice for the NOT_CONFIGURED test');
+    extractVendorInvoice(ctx, eligible.id);
+    const runs = listOcrExtractionRuns(ctx, eligible.id);
+    const failedRun = runs[0];
+    assert.ok(failedRun, 'Must have a run record');
+    assert.equal(failedRun.status, 'FAILED', 'NOT_CONFIGURED must produce FAILED run');
+    assert.equal(failedRun.provider_status, 'NOT_CONFIGURED', 'Provider status must be NOT_CONFIGURED');
+    assert.ok(failedRun.error_message.length > 0, 'Error message must be non-empty');
+    // Verify no credential values leaked into error message
+    assert.ok(!failedRun.error_message.includes('AKIA'), 'Error must not contain key prefix');
+    assert.ok(!failedRun.error_message.includes('secret'), 'Error must not mention raw secret values');
+    // Invoice must NOT be approved or export-ready after a FAILED extraction
+    assert.notEqual(failedRun.review_status, 'ACCEPTED', 'FAILED run must not be auto-accepted');
+  } finally {
+    if (savedProvider !== undefined) process.env.OCR_PROVIDER = savedProvider; else delete process.env.OCR_PROVIDER;
+    if (savedKey !== undefined) process.env.OCR_ACCESS_KEY = savedKey; else delete process.env.OCR_ACCESS_KEY;
+  }
+});
+
+test('extractVendorInvoice evidence_document_id is null when no evidence is linked (local mode)', () => {
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  const invoices = listVendorInvoices(ctx);
+  const eligible = invoices.find((inv) => ['DRAFT', 'UPLOADED', 'EXTRACTION_PENDING', 'EXTRACTED', 'EXCEPTION'].includes(inv.status));
+  assert.ok(eligible, 'Must have extractable invoice');
+  extractVendorInvoice(ctx, eligible.id);
+  const runs = listOcrExtractionRuns(ctx, eligible.id);
+  const run = runs[0];
+  // evidence_document_id is null in local mode (no external submission)
+  assert.ok(run.evidence_document_id === null || run.evidence_document_id === undefined || run.evidence_document_id === '',
+    'Local extraction must have null evidence_document_id');
+});
+
+test('listOcrExtractionRuns returns evidence_document_id column', () => {
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  const invoices = listVendorInvoices(ctx);
+  const eligible = invoices.find((inv) => ['DRAFT', 'UPLOADED', 'EXTRACTION_PENDING', 'EXTRACTED', 'EXCEPTION'].includes(inv.status));
+  assert.ok(eligible, 'Must have extractable invoice');
+  extractVendorInvoice(ctx, eligible.id);
+  const runs = listOcrExtractionRuns(ctx, eligible.id);
+  assert.ok(runs.length > 0, 'Must have at least one run');
+  // Column must exist on returned rows (even if null)
+  assert.ok('evidence_document_id' in runs[0], 'listOcrExtractionRuns must return evidence_document_id column');
+});
+
+test('getOcrExtractionRunDetail returns evidence_document_id field', () => {
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  const invoices = listVendorInvoices(ctx);
+  const eligible = invoices.find((inv) => ['DRAFT', 'UPLOADED', 'EXTRACTION_PENDING', 'EXTRACTED', 'EXCEPTION'].includes(inv.status));
+  assert.ok(eligible, 'Must have extractable invoice');
+  extractVendorInvoice(ctx, eligible.id);
+  const runs = listOcrExtractionRuns(ctx, eligible.id);
+  const detail = getOcrExtractionRunDetail(ctx, runs[0].id);
+  assert.ok('evidence_document_id' in detail, 'getOcrExtractionRunDetail must return evidence_document_id');
+});
+
+test('OCR run audit log includes provider name and run status', () => {
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  const tenantId = 'tenant_intelliflow_systems';
+  const invoices = listVendorInvoices(ctx);
+  const eligible = invoices.find((inv) => ['DRAFT', 'UPLOADED', 'EXTRACTION_PENDING', 'EXTRACTED', 'EXCEPTION'].includes(inv.status));
+  assert.ok(eligible, 'Must have extractable invoice');
+  const beforeCount = selectAll('SELECT COUNT(*) AS count FROM audit_logs WHERE tenant_id = ? AND action = ?', [tenantId, 'EXTRACT_VENDOR_INVOICE'])[0].count;
+  extractVendorInvoice(ctx, eligible.id);
+  const afterCount = selectAll('SELECT COUNT(*) AS count FROM audit_logs WHERE tenant_id = ? AND action = ?', [tenantId, 'EXTRACT_VENDOR_INVOICE'])[0].count;
+  assert.ok(afterCount > beforeCount, 'EXTRACT_VENDOR_INVOICE audit event must be created');
+  const auditRow = selectAll(
+    'SELECT * FROM audit_logs WHERE tenant_id = ? AND action = ? ORDER BY created_at DESC LIMIT 1',
+    [tenantId, 'EXTRACT_VENDOR_INVOICE']
+  )[0];
+  assert.ok(auditRow.summary.includes('local') || auditRow.summary.includes('aws_textract'), 'Audit summary must name the provider');
+  assert.ok(auditRow.summary.includes('COMPLETED') || auditRow.summary.includes('FAILED') || auditRow.summary.includes('PENDING'), 'Audit summary must include run status');
+});
+
+test('accepted OCR proposed fields are never auto-applied without explicit human review', () => {
+  const ctx = context('tenant_intelliflow_systems', 'tenant_intelliflow_systems_user_admin');
+  const invoices = listVendorInvoices(ctx);
+  const eligible = invoices.find((inv) => ['DRAFT', 'UPLOADED', 'EXTRACTION_PENDING', 'EXTRACTED', 'EXCEPTION'].includes(inv.status));
+  assert.ok(eligible, 'Must have extractable invoice');
+  extractVendorInvoice(ctx, eligible.id);
+  const runs = listOcrExtractionRuns(ctx, eligible.id);
+  const completedRun = runs.find((r) => r.status === 'COMPLETED');
+  assert.ok(completedRun, 'Must have a COMPLETED run');
+  // Before explicit acceptance, review_status must be PENDING_REVIEW
+  assert.equal(completedRun.review_status, 'PENDING_REVIEW', 'Run must start as PENDING_REVIEW — never auto-accepted');
+  // Invoice must NOT be APPROVED or EXPORT_READY after extraction alone
+  const detail = getVendorInvoiceDetail(ctx, eligible.id);
+  assert.notEqual(detail.vendorInvoice.status, 'APPROVED', 'Invoice must NOT be auto-approved after OCR extraction');
+  assert.notEqual(detail.vendorInvoice.status, 'EXPORT_READY', 'Invoice must NOT be auto-export-ready after OCR extraction');
+});
+
+test('verify-ocr script covers live-provider probe documentation', () => {
+  const content = readFileSync('scripts/verify-ocr.mjs', 'utf8');
+  assert.match(content, /--probe/i, 'Script must document --probe flag for live connectivity test');
+  assert.match(content, /SigV4|AWS4-HMAC-SHA256|Signature V4/i, 'Script must use AWS SigV4 signing for probe');
+  assert.match(content, /NEVER|redacted|no secrets/i, 'Script must assert no credential exposure');
+});
+
+test('ocr-textract-worker.js exists and exports normalizeTextractExpenseResult', () => {
+  const content = readFileSync('src/ocr-textract-worker.js', 'utf8');
+  assert.match(content, /normalizeTextractExpenseResult/, 'Worker must define normalizeTextractExpenseResult');
+  assert.match(content, /AnalyzeExpense/i, 'Worker must reference Textract AnalyzeExpense API');
+  assert.match(content, /AWS4-HMAC-SHA256|SigV4|signTextractRequest/, 'Worker must implement SigV4 signing');
+  assert.match(content, /Confidence.*100|100.*Confidence|\/\s*100/, 'Worker must normalize Textract confidence from 0–100 to 0–1');
+});
+
+test('ocr-textract-worker.js never echoes secret key values in error messages or logs', () => {
+  const content = readFileSync('src/ocr-textract-worker.js', 'utf8');
+  // The access key ID (not secret) legitimately appears in the SigV4 Authorization header — that is required by AWS.
+  // The SECRET key must never appear anywhere in output, logs, or error strings.
+  assert.ok(!content.includes('secretKey}'), 'Worker must not interpolate secretKey into any string');
+  assert.ok(!content.includes('cfg.secretKey +'), 'Worker must not concatenate secretKey into messages');
+  // Error messages must not reference raw key values
+  const errorLines = content.split('\n').filter((line) => line.includes('error:') && line.includes('secretKey'));
+  assert.equal(errorLines.length, 0, 'Error message fields must not reference secretKey values');
+  // Verify the signing key derivation uses HMAC (not direct string inclusion)
+  assert.match(content, /AWS4.*secretKey|hmacSha256.*secretKey|buildSigningKey/, 'Secret key must only be used in HMAC signing context');
+});
+
+test('migration 028 adds evidence_document_id to invoice_extraction_runs', () => {
+  const content = readFileSync('db/migrations/028_ocr_evidence_id.sql', 'utf8');
+  assert.match(content, /evidence_document_id/, 'Migration must add evidence_document_id column');
+  assert.match(content, /invoice_extraction_runs/, 'Migration must target invoice_extraction_runs table');
+  assert.match(content, /PRAGMA user_version = 28/, 'Migration must set user_version to 28');
+});
+
+test('Phase 3L release doc exists', () => {
+  const content = readFileSync('docs/releases/phase-3l-live-ocr-cutover.md', 'utf8');
+  assert.match(content, /Phase 3L/i, 'Must reference Phase 3L');
+  assert.match(content, /AWS Textract/i, 'Must mention AWS Textract');
+  assert.match(content, /SigV4|Signature V4/i, 'Must mention SigV4 signing');
+  assert.match(content, /human.*review|review.*human/i, 'Must affirm human review requirement');
 });
