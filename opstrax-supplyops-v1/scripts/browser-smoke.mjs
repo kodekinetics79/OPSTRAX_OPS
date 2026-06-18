@@ -202,7 +202,9 @@ async function checkModulePages(page, port) {
     { navText: 'DeviceOps Center', expectText: ['Device', 'Trusted'] },
     { navText: 'Offline Sync', expectText: ['Offline', 'Sync'] },
     { navText: 'AI Operations', expectText: ['AI Operations', 'Provider not configured', 'Advisory'] },
-    { navText: 'Reports', expectText: ['Reports Center', 'Report Catalog', 'Recent Runs'] }
+    { navText: 'Reports', expectText: ['Reports Center', 'Report Catalog', 'Recent Runs'] },
+    { navText: 'Inventory Optimization', expectText: ['Inventory Optimization', 'Cycle Count', 'Variance', 'Replenishment'] },
+    { navText: 'Asset & Custody', expectText: ['Asset', 'Custody', 'Disposal', 'Maintenance'] }
   ];
 
   for (const mod of modules) {
@@ -226,6 +228,13 @@ async function checkModulePages(page, port) {
 
     await page.waitForTimeout(250);
     await page.screenshot({ path: join(screenshotDir, `${slug(mod.navText)}.png`), fullPage: false });
+  }
+
+  // Navigate to Reports Center before report-run checks (module loop may have ended on a different page)
+  const reportsNavItem = page.locator('.nav-item[data-page="Reports"]').first();
+  if ((await reportsNavItem.count()) > 0) {
+    await reportsNavItem.click();
+    await page.waitForTimeout(600);
   }
 
   let reportRunId = null;
@@ -280,6 +289,80 @@ async function checkModulePages(page, port) {
 
   await page.waitForTimeout(250);
   await page.screenshot({ path: join(screenshotDir, 'reports-center-drawer.png'), fullPage: false });
+
+  await check('Inventory Optimization API returns summary with KPIs', async () => {
+    const cookies = await page.context().cookies();
+    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+    const res = await fetch(`http://127.0.0.1:${port}/api/inventory-optimization/summary`, {
+      headers: { Cookie: cookieHeader }
+    });
+    if (res.status !== 200) throw new Error(`/api/inventory-optimization/summary returned ${res.status}`);
+    const payload = await res.json();
+    if (!payload.summary) throw new Error('Summary KPIs missing from response');
+    if (typeof payload.summary.total_items !== 'number') throw new Error('total_items KPI missing');
+  });
+
+  await check('Inventory Optimization cycle count plans list returns array', async () => {
+    const cookies = await page.context().cookies();
+    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+    const res = await fetch(`http://127.0.0.1:${port}/api/inventory-optimization/cycle-count-plans`, {
+      headers: { Cookie: cookieHeader }
+    });
+    if (res.status !== 200) throw new Error(`/api/inventory-optimization/cycle-count-plans returned ${res.status}`);
+    const payload = await res.json();
+    if (!Array.isArray(payload.plans)) throw new Error('plans array missing from response');
+  });
+
+  await page.screenshot({ path: join(screenshotDir, 'inventory-optimization-center.png'), fullPage: false });
+
+  await check('Asset Custody API returns summary with KPIs', async () => {
+    const cookies = await page.context().cookies();
+    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+    const res = await fetch(`http://127.0.0.1:${port}/api/assets/summary`, {
+      headers: { Cookie: cookieHeader }
+    });
+    if (res.status !== 200) throw new Error(`/api/assets/summary returned ${res.status}`);
+    const payload = await res.json();
+    if (!payload.summary) throw new Error('Asset custody summary KPIs missing from response');
+    if (typeof payload.summary.total_assets !== 'number') throw new Error('total_assets KPI missing');
+  });
+
+  await check('Asset Custody API returns asset list', async () => {
+    const cookies = await page.context().cookies();
+    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+    const res = await fetch(`http://127.0.0.1:${port}/api/assets`, {
+      headers: { Cookie: cookieHeader }
+    });
+    if (res.status !== 200) throw new Error(`/api/assets returned ${res.status}`);
+    const payload = await res.json();
+    if (!Array.isArray(payload.assets)) throw new Error('assets array missing from response');
+    if (payload.assets.length === 0) throw new Error('No seeded assets found');
+  });
+
+  await check('OCR status API returns provider status without secrets', async () => {
+    const cookies = await page.context().cookies();
+    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+    const res = await fetch(`http://127.0.0.1:${port}/api/ocr/status`, {
+      headers: { Cookie: cookieHeader }
+    });
+    if (res.status !== 200) throw new Error(`/api/ocr/status returned ${res.status}`);
+    const payload = await res.json();
+    if (!payload.ocrStatus) throw new Error('ocrStatus missing from response');
+    const statusJson = JSON.stringify(payload);
+    if (statusJson.includes('secret') || statusJson.includes('accessKey') || statusJson.includes('secretKey')) throw new Error('OCR status response must not expose secrets');
+    if (!['LOCAL', 'NOT_CONFIGURED', 'CONFIGURED', 'ERROR'].includes(payload.ocrStatus.status)) throw new Error(`Invalid OCR status: ${payload.ocrStatus.status}`);
+  });
+
+  await check('P2P page shows OCR provider status panel', async () => {
+    const nav = page.locator('.nav-item').filter({ hasText: /Invoice Intelligence/i }).first();
+    if ((await nav.count()) === 0) throw new Error('Invoice Intelligence nav missing');
+    await nav.click();
+    await page.waitForTimeout(600);
+    const text = await page.textContent('#main-content, #app, body');
+    if (!text.includes('OCR Provider Status')) throw new Error('OCR Provider Status panel missing from P2P page');
+    if (!text.includes('OCR proposes values only')) throw new Error('OCR proposes values only copy missing');
+    if (!text.includes('Review required')) throw new Error('Review required copy missing');
+  });
 
   await check('Procure-to-Pay invoice drawer exposes extraction and matching panels', async () => {
     const nav = page.locator('.nav-item').filter({ hasText: /Invoice Intelligence/i }).first();
@@ -350,6 +433,16 @@ async function checkRestrictedTenant(browser, port) {
   await check('Evostel still sees the permitted Reports module', async () => {
     const text = await page.textContent('#app');
     if (!text.includes('Reports')) throw new Error('Reports should remain visible');
+  });
+
+  await check('Evostel does not show Inventory Optimization (feature-gated)', async () => {
+    const text = await page.textContent('#app');
+    if (text.includes('Inventory Optimization')) throw new Error('Inventory Optimization should be hidden for restricted tenant');
+  });
+
+  await check('Evostel does not show Asset & Custody Center (feature-gated)', async () => {
+    const text = await page.textContent('#app');
+    if (text.includes('Asset & Custody')) throw new Error('Asset & Custody Center should be hidden for restricted tenant');
   });
 
   await check('Evostel shows Audit Trail', async () => {

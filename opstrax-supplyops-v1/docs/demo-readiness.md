@@ -112,9 +112,10 @@ X-Dev-User-Id: tenant_intelliflow_systems_user_admin
 | Execution | Worker-Safe Mode | `worker_safe_mode` | All |
 | Intelligence | AI Operations | `ask_opstrax_ai` | All |
 | Intelligence | Reports | `reports` | All |
+| Intelligence | Inventory Optimization | `inventory_optimization` | Full tier only |
 | Intelligence | Admin | `admin` | admin only |
 
-**Evostel LLC (restricted):** sees only Command Center, Inventory Control, Request Center, Worker-Safe Mode, Audit Trail, Compliance Center, Reports — no procurement, finance, receiving, evidence, or DeviceOps.
+**Evostel LLC (restricted):** sees only Command Center, Inventory Control, Request Center, Worker-Safe Mode, Audit Trail, Compliance Center, Reports — no procurement, finance, receiving, evidence, DeviceOps, or Inventory Optimization.
 
 ---
 
@@ -364,3 +365,4 @@ If you need a conservative rollback, restore the prior `data/opstrax.production.
 - “Procure-to-Pay Intelligence shows invoice extraction, matching, exception handling, and export posture without faking a live ERP handoff.”
 - “The restricted Evostel tenant proves the same controls hold when the workspace is intentionally constrained.”
 - “Reports Center is backend-owned: the frontend submits the report type and format; the backend enforces tenant scope, RBAC, and feature entitlement; generates rows; and delivers the export. No client-side CSV or PDF fabrication.”
+- “Inventory Optimization Center delivers real cycle count workflows, variance control with severity tiers, replenishment recommendations from live inventory signals, and ABC classification. Stock adjustments require human approval and are audit-backed — no auto-posting.”

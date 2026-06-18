@@ -19,6 +19,34 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function checkOcrPosture() {
+  const ocrProvider = env('OCR_PROVIDER').toLowerCase() || 'local';
+  const ocrRequired = env('OCR_REQUIRED').toLowerCase() === 'true';
+  const hasAccessKey = Boolean(env('OCR_ACCESS_KEY'));
+  const hasSecretKey = Boolean(env('OCR_SECRET_KEY'));
+  const hasEndpoint = Boolean(env('OCR_ENDPOINT'));
+  process.stdout.write(`[go-live-check] OCR provider: ${ocrProvider} | required: ${ocrRequired}\n`);
+  if (ocrRequired) {
+    assert(ocrProvider !== 'local', 'OCR_REQUIRED=true but OCR_PROVIDER is not set to an external provider. Set OCR_PROVIDER=aws_textract|azure_document_intelligence|google_document_ai.');
+    if (ocrProvider === 'aws_textract') {
+      assert(hasAccessKey, 'OCR_REQUIRED=true and OCR_PROVIDER=aws_textract: OCR_ACCESS_KEY is required.');
+      assert(hasSecretKey, 'OCR_REQUIRED=true and OCR_PROVIDER=aws_textract: OCR_SECRET_KEY is required.');
+      assert(Boolean(env('OCR_REGION')), 'OCR_REQUIRED=true and OCR_PROVIDER=aws_textract: OCR_REGION is required.');
+    } else if (ocrProvider === 'azure_document_intelligence' || ocrProvider === 'google_document_ai') {
+      assert(hasEndpoint, `OCR_REQUIRED=true and OCR_PROVIDER=${ocrProvider}: OCR_ENDPOINT is required.`);
+      assert(hasAccessKey, `OCR_REQUIRED=true and OCR_PROVIDER=${ocrProvider}: OCR_ACCESS_KEY is required.`);
+      assert(Boolean(env('OCR_MODEL_ID')), `OCR_REQUIRED=true and OCR_PROVIDER=${ocrProvider}: OCR_MODEL_ID is required.`);
+    }
+    process.stdout.write('[go-live-check] OCR: CONFIGURED (required + credentials present)\n');
+  } else {
+    if (ocrProvider === 'local') {
+      process.stdout.write('[go-live-check] OCR: LOCAL (deterministic fallback — not required for go-live)\n');
+    } else {
+      process.stdout.write(`[go-live-check] OCR: ${hasAccessKey || hasEndpoint ? 'CONFIGURED' : 'NOT_CONFIGURED'} (optional)\n`);
+    }
+  }
+}
+
 function requireProductionEnv() {
   assert(env('NODE_ENV') === 'production', 'NODE_ENV=production is required for go-live validation.');
   assert(env('ALLOW_DEV_CONTEXT', 'OPSTRAX_ALLOW_DEV_CONTEXT') !== '1', 'Local demo mode must be disabled for go-live validation.');
@@ -81,6 +109,7 @@ function scanForSecrets(value, trail = 'root') {
 
 try {
   requireProductionEnv();
+  checkOcrPosture();
 
   const health = await readJson('/healthz');
   assert(health.response.status === 200, '/healthz must return 200');

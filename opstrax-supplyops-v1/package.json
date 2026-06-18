@@ -16,6 +16,7 @@
     "verify:storage": "node scripts/verify-storage.mjs",
     "verify:backup-restore": "node scripts/verify-backup-restore.mjs",
     "verify:production-runtime": "node scripts/verify-production-runtime.mjs",
+    "verify:ocr": "node scripts/verify-ocr.mjs",
     "go-live-check": "node scripts/go-live-check.mjs",
     "perf-smoke": "OPSTRAX_ALLOW_DEV_CONTEXT=1 node scripts/perf-smoke.mjs",
     "browser-smoke": "OPSTRAX_ALLOW_DEV_CONTEXT=1 node scripts/browser-smoke.mjs"

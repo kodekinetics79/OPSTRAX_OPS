@@ -7,6 +7,7 @@
 import {
   getDatabaseRuntimeSelection,
   getEvidenceStorageRuntimeSelection,
+  getOcrRuntimeSelection,
   getPlatformOidcRuntimeSelection,
   getSessionRuntimeSelection,
   getTenantOidcRuntimeSelection
@@ -108,6 +109,20 @@ export function runStartupChecks() {
   }
   if (platformAuthSelection.clientId && !platformAuthSelection.issuer) {
     warn('PLATFORM_OIDC_CLIENT_ID is set but PLATFORM_OIDC_ISSUER is missing — platform OIDC will not be activated.');
+  }
+
+  // OCR provider check — fatal if OCR_REQUIRED=true and provider is not configured
+  const ocrSelection = getOcrRuntimeSelection(process.env);
+  if (ocrSelection.required) {
+    const isExternal = ocrSelection.provider !== 'local';
+    const hasCreds = ocrSelection.hasCredentials;
+    if (!isExternal || !hasCreds) {
+      const missing = !isExternal ? 'OCR_PROVIDER must be set to an external provider' : 'OCR credentials (OCR_ACCESS_KEY) are required';
+      fatal(`OCR_REQUIRED=true but OCR provider is not configured: ${missing}.`);
+    }
+  }
+  if (ocrSelection.provider !== 'local') {
+    process.stderr.write(`[startup] INFO  OCR provider = ${ocrSelection.provider} required = ${ocrSelection.required}\n`);
   }
 
   if (!isProduction) {

@@ -69,3 +69,18 @@ export function getEvidenceStorageRuntimeSelection(env = process.env) {
     signingSecret: pickEnv(env, 'EVIDENCE_SIGNING_SECRET', 'OPSTRAX_EVIDENCE_SIGNING_SECRET')
   };
 }
+
+export function getOcrRuntimeSelection(env = process.env) {
+  const provider = pickEnv(env, 'OCR_PROVIDER').toLowerCase() || 'local';
+  return {
+    provider,
+    region: pickEnv(env, 'OCR_REGION'),
+    endpoint: pickEnv(env, 'OCR_ENDPOINT'),
+    modelId: pickEnv(env, 'OCR_MODEL_ID'),
+    timeoutMs: Number(pickEnv(env, 'OCR_TIMEOUT_MS') || '30000'),
+    maxPages: Number(pickEnv(env, 'OCR_MAX_PAGES') || '20'),
+    confidenceThreshold: Number(pickEnv(env, 'OCR_CONFIDENCE_THRESHOLD') || '0.7'),
+    required: pickEnv(env, 'OCR_REQUIRED').toLowerCase() === 'true',
+    hasCredentials: Boolean(pickEnv(env, 'OCR_ACCESS_KEY') || pickEnv(env, 'OCR_SECRET_KEY'))
+  };
+}

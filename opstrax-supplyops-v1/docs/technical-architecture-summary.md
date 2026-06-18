@@ -54,6 +54,18 @@
 - report run states: `QUEUED` → `RUNNING` → `COMPLETED` / `FAILED` / `CANCELLED`
 - platform reports are gated to platform-role users and do not expose tenant operational detail
 
+## Inventory Optimization Model
+
+- cycle count plans follow DRAFT → SCHEDULED → IN_PROGRESS → REVIEW_PENDING → APPROVED → POSTED / CANCELLED lifecycle
+- count sessions track per-line variance; variance severity tiers: BLOCKER (controlled item or ≥20%), WARNING (≥5%), INFO (<5%)
+- BLOCKER variances structurally block session approval at the service layer — cannot be bypassed via the frontend
+- posting a session adjusts `stock_balances` and inserts `stock_movements` with `movement_type=ADJUSTMENT`; posting is idempotent
+- replenishment recommendations are generated from live signals: on-hand vs reorder_point, open PO qty, requisition demand, 90-day avg daily issue rate
+- converting a recommendation creates a real `internal_request` in DRAFT state; stock is never auto-adjusted
+- ABC classification score = value_score (0–40) + movement_score (0–40) + criticality_score (0–20); items with <3 movements in 90 days get `insufficient_history=1` and movement_score=0
+- all mutations write to `audit_logs`; tenant isolation enforced via `WHERE tenant_id = ?` binding on every query
+- feature flag `inventory_optimization` gates the module; restricted tenants (Evostel) receive 403 on all InvOpt endpoints
+
 ## Integration Model
 
 - integration jobs are tracked in the product

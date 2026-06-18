@@ -16,7 +16,10 @@ import {
   logoutSession,
   requireCsrf
 } from './src/auth.js';
-import { auditDenied, getAdminSnapshot, getAuditSummary, getEntityAudit, getMe, getReceiveSessionDetail, getReceivingSummary, getEvidenceDetail, downloadEvidenceContent, linkEvidence, verifyEvidence, archiveEvidence, listEvidenceLinks, listAuditLogs, listBootstrap, listCompliance, listDepartments, listDevices, listDocuments, listExports, listExportSummary, listExportCandidates, listExportBatches, getExportBatchDetail, listExportBatchErrors, validateExportBatch, approveExportBatch, generateExportBatch, dispatchExportBatch, cancelExportBatch, listFacilities, listFeatureFlags, listInternalRequests, listItems, listItemCategories, listInventorySummary, listInventoryBalances, listStockMovements, listStockAdjustments, listInventoryBins, getItemDetail, getInventoryAdjustmentDetail, createItem, updateItem, createStockAdjustment, listLabelJobs, listPermissions, listPurchaseRequests, listPurchaseOrders, listReceivingMovements, listReceivingPurchaseOrders, listReceivingSessions, listVendors, getProcurementSummary, getVendorDetail, createVendor, updateVendor, getPurchaseDetail, getPurchaseOrderDetail, createPurchaseRequest, updatePurchaseRequest, submitPurchaseRequest, approvePurchaseRequest, rejectPurchaseRequest, cancelPurchaseRequest, listPurchaseRequestLines, createPurchaseRequestLine, updatePurchaseRequestLine, deletePurchaseRequestLine, createPurchaseOrderFromPurchaseRequest, updatePurchaseOrder, approvePurchaseOrder, issuePurchaseOrder, cancelPurchaseOrder, listSupplierContracts, getSupplierContractDetail, createSupplierContract, updateSupplierContract, listDepartmentBudgets, getDepartmentBudgetDetail, updateDepartmentBudget, listProcurementWaivers, createProcurementWaiver, getProcurementAdvisory, getProcureToPaySummary, listVendorInvoices, listVendorInvoiceLines, listVendorInvoiceExceptions, getVendorInvoiceExceptionDetail, getVendorInvoiceDetail, createVendorInvoice, createVendorInvoiceLine, updateVendorInvoice, updateVendorInvoiceLine, deleteVendorInvoiceLine, uploadVendorInvoice, extractVendorInvoice, matchVendorInvoice, waiveInvoiceException, approveVendorInvoice, rejectVendorInvoice, cancelVendorInvoice, markVendorInvoiceExportReady, exportVendorInvoice, listRfqRequests, getRfqRequestDetail, createRfqRequest, updateRfqRequest, sendRfqRequest, evaluateRfqRequest, awardRfqRequest, cancelRfqRequest, listRfqLines, createRfqLine, updateRfqLine, deleteRfqLine, listVendorQuotes, getVendorQuoteDetail, createVendorQuote, updateVendorQuote, submitVendorQuote, shortlistVendorQuote, awardVendorQuote, rejectVendorQuote, expireVendorQuote, listVendorScorecards, createReceiveSessionFromPurchaseOrder, startReceiveSession, recordReceiveLine, recordReceiveException, postReceiveSession, cancelReceiveSession, listRoles, listSyncBatches, listSyncConflicts, listUsers, resolveContext, createInternalRequest, submitInternalRequest, cancelInternalRequest, approveInternalRequest, rejectInternalRequest, issueInternalRequest, reviewSyncBatch, createLabelJob, createExportBatch, validateFinanceExport, generateFinanceExport as generateFinanceExportAction, uploadDocument, resolveSyncConflict, dispatchExport, getRequestDetail, listAvailableRequestItems, updateInternalRequest, listRequestLines, createRequestLine, updateRequestLine, deleteRequestLine, listWarehouseSummary, listWarehouseTasks, listIssueReadyRequests, listWarehouseBins, getWarehouseTaskDetail, createWarehouseTaskFromRequest, startWarehouseTask, pickWarehouseTaskLine, issueWarehouseTaskLine, closeWarehouseTask, cancelWarehouseTask, listIntegrationSummary, listIntegrationConnections, createIntegrationConnection, listIntegrationJobs, getIntegrationConnectionDetail, getIntegrationJobDetail, retryIntegrationJob, cancelIntegrationJob, listDeviceOpsSummary, createDevice, getDeviceDetail, updateDevice, trustDevice, suspendDevice, revokeDevice, listDeviceEvents, recordScanEvent, validateScan, listOfflineSummary, createOfflineBatch, listOfflineBatches, getOfflineBatchDetail, uploadOfflineBatch, validateOfflineBatch, replayOfflineBatch, approveOfflineBatch, rejectOfflineBatch, listSyncConflictsNew, getSyncConflictDetail, approveSyncConflict, rejectSyncConflict, listOfflineTasks, getOfflineTaskDetail , listAiSummary, listAiAgents, listAiRecommendations, generateAiRecommendations, getAiRecommendationDetail, dismissAiRecommendation, approveAiRecommendationPlaceholder, listAiRuns, getAiRunDetail, queryOpsCopilot, listComplianceControls, updateComplianceControl, listComplianceEvidence, listAccessReviews, createAccessReview, reviewAccessEntry, listRiskRegister, createRiskEntry, updateRiskEntry, listIncidentRegister, createIncident, updateIncident, listVendorIntegrationRegister, listAiGovernanceLogs, getSecurityPosture, getAvailabilityPosture, listSsoConfigurations, listBackupRecords, listRestoreTests, listReportDefinitions, listReportSummary, listReportRuns, getReportRun, runReport, cancelReportRun, exportReportRunCsv, exportReportRunPdf } from './src/services.js';
+import { auditDenied, getAdminSnapshot, getAuditSummary, getEntityAudit, getMe, getReceiveSessionDetail, getReceivingSummary, getEvidenceDetail, downloadEvidenceContent, linkEvidence, verifyEvidence, archiveEvidence, listEvidenceLinks, listAuditLogs, listBootstrap, listCompliance, listDepartments, listDevices, listDocuments, listExports, listExportSummary, listExportCandidates, listExportBatches, getExportBatchDetail, listExportBatchErrors, validateExportBatch, approveExportBatch, generateExportBatch, dispatchExportBatch, cancelExportBatch, listFacilities, listFeatureFlags, listInternalRequests, listItems, listItemCategories, listInventorySummary, listInventoryBalances, listStockMovements, listStockAdjustments, listInventoryBins, getItemDetail, getInventoryAdjustmentDetail, createItem, updateItem, createStockAdjustment, listLabelJobs, listPermissions, listPurchaseRequests, listPurchaseOrders, listReceivingMovements, listReceivingPurchaseOrders, listReceivingSessions, listVendors, getProcurementSummary, getVendorDetail, createVendor, updateVendor, getPurchaseDetail, getPurchaseOrderDetail, createPurchaseRequest, updatePurchaseRequest, submitPurchaseRequest, approvePurchaseRequest, rejectPurchaseRequest, cancelPurchaseRequest, listPurchaseRequestLines, createPurchaseRequestLine, updatePurchaseRequestLine, deletePurchaseRequestLine, createPurchaseOrderFromPurchaseRequest, updatePurchaseOrder, approvePurchaseOrder, issuePurchaseOrder, cancelPurchaseOrder, listSupplierContracts, getSupplierContractDetail, createSupplierContract, updateSupplierContract, listDepartmentBudgets, getDepartmentBudgetDetail, updateDepartmentBudget, listProcurementWaivers, createProcurementWaiver, getProcurementAdvisory, getProcureToPaySummary, listVendorInvoices, listVendorInvoiceLines, listVendorInvoiceExceptions, getVendorInvoiceExceptionDetail, getVendorInvoiceDetail, createVendorInvoice, createVendorInvoiceLine, updateVendorInvoice, updateVendorInvoiceLine, deleteVendorInvoiceLine, uploadVendorInvoice, extractVendorInvoice, matchVendorInvoice, waiveInvoiceException, approveVendorInvoice, rejectVendorInvoice, cancelVendorInvoice, markVendorInvoiceExportReady, exportVendorInvoice, listRfqRequests, getRfqRequestDetail, createRfqRequest, updateRfqRequest, sendRfqRequest, evaluateRfqRequest, awardRfqRequest, cancelRfqRequest, listRfqLines, createRfqLine, updateRfqLine, deleteRfqLine, listVendorQuotes, getVendorQuoteDetail, createVendorQuote, updateVendorQuote, submitVendorQuote, shortlistVendorQuote, awardVendorQuote, rejectVendorQuote, expireVendorQuote, listVendorScorecards, createReceiveSessionFromPurchaseOrder, startReceiveSession, recordReceiveLine, recordReceiveException, postReceiveSession, cancelReceiveSession, listRoles, listSyncBatches, listSyncConflicts, listUsers, resolveContext, createInternalRequest, submitInternalRequest, cancelInternalRequest, approveInternalRequest, rejectInternalRequest, issueInternalRequest, reviewSyncBatch, createLabelJob, createExportBatch, validateFinanceExport, generateFinanceExport as generateFinanceExportAction, uploadDocument, resolveSyncConflict, dispatchExport, getRequestDetail, listAvailableRequestItems, updateInternalRequest, listRequestLines, createRequestLine, updateRequestLine, deleteRequestLine, listWarehouseSummary, listWarehouseTasks, listIssueReadyRequests, listWarehouseBins, getWarehouseTaskDetail, createWarehouseTaskFromRequest, startWarehouseTask, pickWarehouseTaskLine, issueWarehouseTaskLine, closeWarehouseTask, cancelWarehouseTask, listIntegrationSummary, listIntegrationConnections, createIntegrationConnection, listIntegrationJobs, getIntegrationConnectionDetail, getIntegrationJobDetail, retryIntegrationJob, cancelIntegrationJob, listDeviceOpsSummary, createDevice, getDeviceDetail, updateDevice, trustDevice, suspendDevice, revokeDevice, listDeviceEvents, recordScanEvent, validateScan, listOfflineSummary, createOfflineBatch, listOfflineBatches, getOfflineBatchDetail, uploadOfflineBatch, validateOfflineBatch, replayOfflineBatch, approveOfflineBatch, rejectOfflineBatch, listSyncConflictsNew, getSyncConflictDetail, approveSyncConflict, rejectSyncConflict, listOfflineTasks, getOfflineTaskDetail , listAiSummary, listAiAgents, listAiRecommendations, generateAiRecommendations, getAiRecommendationDetail, dismissAiRecommendation, approveAiRecommendationPlaceholder, listAiRuns, getAiRunDetail, queryOpsCopilot, listComplianceControls, updateComplianceControl, listComplianceEvidence, listAccessReviews, createAccessReview, reviewAccessEntry, listRiskRegister, createRiskEntry, updateRiskEntry, listIncidentRegister, createIncident, updateIncident, listVendorIntegrationRegister, listAiGovernanceLogs, getSecurityPosture, getAvailabilityPosture, listSsoConfigurations, listBackupRecords, listRestoreTests, listReportDefinitions, listReportSummary, listReportRuns, getReportRun, runReport, cancelReportRun, exportReportRunCsv, exportReportRunPdf, getInventoryOptimizationSummary, listInventoryCycleCountPlans, createInventoryCycleCountPlan, getInventoryCycleCountPlanDetail, updateInventoryCycleCountPlan, scheduleInventoryCycleCountPlan, startInventoryCycleCountPlan, cancelInventoryCycleCountPlan, addInventoryCycleCountPlanLine, updateInventoryCycleCountPlanLine, createInventoryCountSession, getInventoryCountSessionDetail, recordCountSessionLine, submitCountSessionForReview, approveInventoryCountSession, postInventoryCountSession, listInventoryVariances, getInventoryVarianceDetail, approveInventoryVariance, rejectInventoryVariance, waiveInventoryVariance, listInventoryReplenishmentRecommendations, generateInventoryReplenishmentRecommendations, approveInventoryRecommendation, dismissInventoryRecommendation, convertInventoryRecommendationToRequest, listInventoryClassifications, recalculateInventoryClassifications,
+  getAssetCustodySummary, listAssets, createAsset, getAssetDetail, updateAsset, getAssetTimeline, assignAsset, createAssetTransferRequest, approveAssetTransferRequest, createAssetReturnRequest, acceptAssetReturn, createAssetConditionReport, reportAssetDamage, reportAssetLoss, quarantineAsset, releaseAssetQuarantine, openAssetMaintenance, closeAssetMaintenance, listAssetMaintenanceCases, listAssetDisposalRequests, createAssetDisposalRequest, approveAssetDisposalRequest, rejectAssetDisposalRequest, postAssetDisposal, addAssetEvidence, getAssetEvidence,
+  getOcrProviderStatus, acceptOcrProposedFields, rejectOcrExtraction, listOcrExtractionRuns, getOcrExtractionRunDetail
+} from './src/services.js';
 import { getPlatformAuthBootstrap, createPlatformDemoSession as createPlatformSession, endPlatformWorkspaceSession, resolvePlatformContext, getPlatformMe, getPlatformSummary, listPlatformTenants, getPlatformTenantDetail, getPlatformTenantUsers, getPlatformTenantModules, getPlatformTenantUsage, getPlatformTenantHealth, listPlatformAuditEvents, listPlatformSecurityEvents, listPlatformBillingEvents, listPlatformSupportSessions, createPlatformSupportSession, updatePlatformTenantSubscription, updatePlatformTenantPlan, updatePlatformTenantEntitlements, endPlatformSupportSession, suspendPlatformTenant, reactivatePlatformTenant, auditPlatformDenied, listPlatformReportDefinitions, listPlatformReportSummary, listPlatformReportRuns, getPlatformReportRun, runPlatformReport, cancelPlatformReportRun, exportPlatformReportRunCsv, exportPlatformReportRunPdf } from './src/platform.js';
 import { getDatabaseRuntimeInfo, selectOne as dbSelectOne } from './src/db.js';
 import { probeEvidenceStorage } from './src/evidence-storage.js';
@@ -247,6 +250,7 @@ function routeAction(pathname, method) {
   if (pathname.match(/^\/api\/reports\/runs\/[^/]+\/export\.csv$/)) return 'VIEW_REPORTS';
   if (pathname.match(/^\/api\/reports\/runs\/[^/]+\/export\.pdf$/)) return 'VIEW_REPORTS';
   if (pathname.match(/^\/api\/reports\/runs\/[^/]+$/)) return 'VIEW_REPORTS';
+  if (pathname.startsWith('/api/inventory-optimization/')) return method === 'GET' ? 'VIEW_INVENTORY_OPTIMIZATION' : 'MANAGE_INVENTORY_OPTIMIZATION';
   if (pathname === '/api/platform/reports/summary') return 'VIEW_PLATFORM_REPORTS';
   if (pathname === '/api/platform/reports/definitions') return 'VIEW_PLATFORM_REPORTS';
   if (pathname === '/api/platform/reports/runs') return method === 'POST' ? 'RUN_PLATFORM_REPORTS' : 'VIEW_PLATFORM_REPORTS';
@@ -1537,7 +1541,237 @@ function route(req, res) {
     if (req.method === 'POST' && url.pathname === '/api/ai/copilot/query') {
       return handleJson(req, res, () => queryOpsCopilot(context, req.body || {}), { context, route: url.pathname, method: req.method });
     }
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Phase 3I: Inventory Optimization Center ──────────────────────────────
+    if (req.method === 'GET' && url.pathname === '/api/inventory-optimization/summary') {
+      return sendJson(res, 200, { summary: getInventoryOptimizationSummary(context) });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/inventory-optimization/cycle-count-plans') {
+      return sendJson(res, 200, { plans: listInventoryCycleCountPlans(context, Object.fromEntries(url.searchParams.entries())) });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/inventory-optimization/cycle-count-plans') {
+      return handleJson(req, res, () => sendJson(res, 201, createInventoryCycleCountPlan(context, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/inventory-optimization\/cycle-count-plans\/[^/]+$/) && !url.pathname.match(/\/(lines|sessions|schedule|start|cancel)$/)) {
+      const planId = url.pathname.split('/')[4];
+      return sendJson(res, 200, getInventoryCycleCountPlanDetail(context, planId));
+    }
+    if (req.method === 'PATCH' && url.pathname.match(/^\/api\/inventory-optimization\/cycle-count-plans\/[^/]+$/)) {
+      const planId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, updateInventoryCycleCountPlan(context, planId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/cycle-count-plans\/[^/]+\/schedule$/)) {
+      const planId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, scheduleInventoryCycleCountPlan(context, planId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/cycle-count-plans\/[^/]+\/start$/)) {
+      const planId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, startInventoryCycleCountPlan(context, planId)), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/cycle-count-plans\/[^/]+\/cancel$/)) {
+      const planId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, cancelInventoryCycleCountPlan(context, planId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/cycle-count-plans\/[^/]+\/lines$/) && !url.pathname.match(/\/lines\/[^/]+$/)) {
+      const planId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 201, addInventoryCycleCountPlanLine(context, planId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'PATCH' && url.pathname.match(/^\/api\/inventory-optimization\/cycle-count-plans\/[^/]+\/lines\/[^/]+$/)) {
+      const parts = url.pathname.split('/');
+      const planId = parts[4];
+      const lineId = parts[6];
+      return handleJson(req, res, () => sendJson(res, 200, updateInventoryCycleCountPlanLine(context, planId, lineId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/cycle-count-plans\/[^/]+\/sessions$/)) {
+      const planId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 201, createInventoryCountSession(context, planId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/inventory-optimization\/cycle-count-sessions\/[^/]+$/) && !url.pathname.match(/\/(count-line|submit-review|approve|post)$/)) {
+      const sessionId = url.pathname.split('/')[4];
+      return sendJson(res, 200, getInventoryCountSessionDetail(context, sessionId));
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/cycle-count-sessions\/[^/]+\/count-line$/)) {
+      const sessionId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, recordCountSessionLine(context, sessionId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/cycle-count-sessions\/[^/]+\/submit-review$/)) {
+      const sessionId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, submitCountSessionForReview(context, sessionId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/cycle-count-sessions\/[^/]+\/approve$/)) {
+      const sessionId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, approveInventoryCountSession(context, sessionId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/cycle-count-sessions\/[^/]+\/post$/)) {
+      const sessionId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, postInventoryCountSession(context, sessionId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/inventory-optimization/variances') {
+      return sendJson(res, 200, { variances: listInventoryVariances(context, Object.fromEntries(url.searchParams.entries())) });
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/inventory-optimization\/variances\/[^/]+$/) && !url.pathname.match(/\/(approve|reject|waive)$/)) {
+      const varianceId = url.pathname.split('/')[4];
+      return sendJson(res, 200, getInventoryVarianceDetail(context, varianceId));
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/variances\/[^/]+\/approve$/)) {
+      const varianceId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, approveInventoryVariance(context, varianceId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/variances\/[^/]+\/reject$/)) {
+      const varianceId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, rejectInventoryVariance(context, varianceId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/variances\/[^/]+\/waive$/)) {
+      const varianceId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, waiveInventoryVariance(context, varianceId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/inventory-optimization/recommendations') {
+      return sendJson(res, 200, { recommendations: listInventoryReplenishmentRecommendations(context, Object.fromEntries(url.searchParams.entries())) });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/inventory-optimization/recommendations/generate') {
+      return handleJson(req, res, () => sendJson(res, 200, generateInventoryReplenishmentRecommendations(context, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/recommendations\/[^/]+\/approve$/)) {
+      const recId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, approveInventoryRecommendation(context, recId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/recommendations\/[^/]+\/dismiss$/)) {
+      const recId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, dismissInventoryRecommendation(context, recId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/inventory-optimization\/recommendations\/[^/]+\/convert-to-request$/)) {
+      const recId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, convertInventoryRecommendationToRequest(context, recId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/inventory-optimization/classifications') {
+      return sendJson(res, 200, { classifications: listInventoryClassifications(context, Object.fromEntries(url.searchParams.entries())) });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/inventory-optimization/classifications/recalculate') {
+      return handleJson(req, res, () => sendJson(res, 200, recalculateInventoryClassifications(context, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    // ── Phase 3J: Asset & Custody Center ─────────────────────────────────────
+    if (req.method === 'GET' && url.pathname === '/api/assets/summary') {
+      return sendJson(res, 200, { summary: getAssetCustodySummary(context) });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/assets/maintenance') {
+      return sendJson(res, 200, { cases: listAssetMaintenanceCases(context, Object.fromEntries(url.searchParams.entries())) });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/assets/disposal-requests') {
+      return sendJson(res, 200, { disposalRequests: listAssetDisposalRequests(context, Object.fromEntries(url.searchParams.entries())) });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/disposal-requests\/[^/]+\/approve$/)) {
+      const disposalId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, approveAssetDisposalRequest(context, disposalId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/disposal-requests\/[^/]+\/reject$/)) {
+      const disposalId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, rejectAssetDisposalRequest(context, disposalId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/disposal-requests\/[^/]+\/post-disposal$/)) {
+      const disposalId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, postAssetDisposal(context, disposalId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/assets') {
+      return sendJson(res, 200, { assets: listAssets(context, Object.fromEntries(url.searchParams.entries())) });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/assets') {
+      return handleJson(req, res, () => sendJson(res, 201, createAsset(context, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/assets\/[^/]+$/) && !url.pathname.match(/\/(timeline|assign|transfer-request|transfer-approve|return-request|return-accept|condition-report|report-damage|report-loss|quarantine|release-quarantine|maintenance|disposal-request|evidence)$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return sendJson(res, 200, getAssetDetail(context, assetId));
+    }
+    if (req.method === 'PATCH' && url.pathname.match(/^\/api\/assets\/[^/]+$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return handleJson(req, res, () => sendJson(res, 200, updateAsset(context, assetId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/assets\/[^/]+\/timeline$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return sendJson(res, 200, { timeline: getAssetTimeline(context, assetId) });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/[^/]+\/assign$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return handleJson(req, res, () => sendJson(res, 200, assignAsset(context, assetId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/[^/]+\/transfer-request$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return handleJson(req, res, () => sendJson(res, 201, createAssetTransferRequest(context, assetId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/[^/]+\/transfer-approve$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return handleJson(req, res, () => sendJson(res, 200, approveAssetTransferRequest(context, assetId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/[^/]+\/return-request$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return handleJson(req, res, () => sendJson(res, 201, createAssetReturnRequest(context, assetId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/[^/]+\/return-accept$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return handleJson(req, res, () => sendJson(res, 200, acceptAssetReturn(context, assetId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/[^/]+\/condition-report$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return handleJson(req, res, () => sendJson(res, 201, createAssetConditionReport(context, assetId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/[^/]+\/report-damage$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return handleJson(req, res, () => sendJson(res, 200, reportAssetDamage(context, assetId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/[^/]+\/report-loss$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return handleJson(req, res, () => sendJson(res, 200, reportAssetLoss(context, assetId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/[^/]+\/quarantine$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return handleJson(req, res, () => sendJson(res, 200, quarantineAsset(context, assetId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/[^/]+\/release-quarantine$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return handleJson(req, res, () => sendJson(res, 200, releaseAssetQuarantine(context, assetId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/[^/]+\/maintenance\/open$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return handleJson(req, res, () => sendJson(res, 201, openAssetMaintenance(context, assetId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/maintenance\/[^/]+\/close$/)) {
+      const caseId = url.pathname.split('/')[4];
+      return handleJson(req, res, () => sendJson(res, 200, closeAssetMaintenance(context, caseId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/[^/]+\/disposal-request$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return handleJson(req, res, () => sendJson(res, 201, createAssetDisposalRequest(context, assetId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/assets\/[^/]+\/evidence$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return sendJson(res, 200, { evidence: getAssetEvidence(context, assetId) });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/assets\/[^/]+\/evidence$/)) {
+      const assetId = url.pathname.split('/')[3];
+      return handleJson(req, res, () => sendJson(res, 201, addAssetEvidence(context, assetId, parseJsonBody(req.body))), { context, route: url.pathname, method: req.method });
+    }
+    // ── End Phase 3J ─────────────────────────────────────────────────────────
+
+    // ── Phase 3K: OCR Provider + Review ──────────────────────────────────────
+    if (req.method === 'GET' && url.pathname === '/api/ocr/status') {
+      return sendJson(res, 200, { ocrStatus: getOcrProviderStatus(context) });
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/procure-to-pay\/vendor-invoices\/[^/]+\/extraction-runs$/)) {
+      const invoiceId = url.pathname.split('/')[4];
+      return sendJson(res, 200, { runs: listOcrExtractionRuns(context, invoiceId) });
+    }
+    if (req.method === 'GET' && url.pathname.match(/^\/api\/procure-to-pay\/vendor-invoices\/[^/]+\/extraction-runs\/[^/]+$/)) {
+      const runId = url.pathname.split('/')[6];
+      return sendJson(res, 200, { run: getOcrExtractionRunDetail(context, runId) });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/procure-to-pay\/vendor-invoices\/[^/]+\/extraction-runs\/[^/]+\/accept$/)) {
+      const runId = url.pathname.split('/')[6];
+      return handleJson(req, res, () => sendJson(res, 200, { run: acceptOcrProposedFields(context, runId, parseJsonBody(req.body)) }), { context, route: url.pathname, method: req.method });
+    }
+    if (req.method === 'POST' && url.pathname.match(/^\/api\/procure-to-pay\/vendor-invoices\/[^/]+\/extraction-runs\/[^/]+\/reject$/)) {
+      const runId = url.pathname.split('/')[6];
+      return handleJson(req, res, () => sendJson(res, 200, { run: rejectOcrExtraction(context, runId, parseJsonBody(req.body)) }), { context, route: url.pathname, method: req.method });
+    }
+    // ── End Phase 3K ─────────────────────────────────────────────────────────
+    // ── End Phase 3I ─────────────────────────────────────────────────────────
     if (serveStatic(req, res, url.pathname)) return;
     if (req.method === 'GET') return serveStatic(req, res, '/index.html');
     sendJson(res, 404, { error: 'Not found' });

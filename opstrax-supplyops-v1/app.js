@@ -62,11 +62,11 @@ const PAGE_GROUPS = [
   },
   {
     title: 'Compliance & Trust',
-    items: ['Documents & Evidence Vault', 'Audit Black Box', 'Compliance Center']
+    items: ['Documents & Evidence Vault', 'Audit Black Box', 'Compliance Center', 'Asset & Custody Center']
   },
   {
     title: 'AI Intelligence',
-    items: ['Ask OpsTrax AI', 'Reports']
+    items: ['Ask OpsTrax AI', 'Reports', 'Inventory Optimization']
   },
   {
     title: 'Admin / Settings',
@@ -112,6 +112,8 @@ const PAGE_NAV_LABELS = {
   'FinanceSync Export Hub': 'Finance Export Hub',
   'Worker-Safe Mode': 'Worker-Safe Mode',
   Reports: 'Reports',
+  'Inventory Optimization': 'Inventory Optimization',
+  'Asset & Custody Center': 'Asset & Custody',
   Admin: 'Admin / Settings'
 };
 
@@ -136,6 +138,8 @@ const PAGE_FEATURES = {
   'Compliance Center': 'compliance_center',
   'Ask OpsTrax AI': 'ask_opstrax_ai',
   Reports: 'reports',
+  'Inventory Optimization': 'inventory_optimization',
+  'Asset & Custody Center': 'asset_custody',
   Admin: 'admin'
 };
 
@@ -144,7 +148,9 @@ const PAGE_CAPABILITIES = {
   'FinanceSync Export Hub': 'manage_exports',
   'Integration Center': 'view_integrations',
   'Warehouse Workflows': 'view_warehouse_tasks',
-  'Procure-to-Pay Intelligence': 'view_procure_to_pay'
+  'Procure-to-Pay Intelligence': 'view_procure_to_pay',
+  'Inventory Optimization': 'view_inventory_optimization',
+  'Asset & Custody Center': 'view_asset_custody'
 };
 
 const PAGE_TITLES = {
@@ -168,6 +174,8 @@ const PAGE_TITLES = {
   'Compliance Center': 'Compliance Center',
   'Ask OpsTrax AI': 'AI Operations',
   Reports: 'Reports',
+  'Inventory Optimization': 'Inventory Optimization Center',
+  'Asset & Custody Center': 'Asset & Custody Center',
   Admin: 'Admin / Settings'
 };
 
@@ -192,6 +200,8 @@ const SECTION_NOTE = {
   'Compliance Center': 'Operational controls that reflect live workflow posture.',
   'Ask OpsTrax AI': 'Heuristic operational insights built from current tenant state.',
   Reports: 'Executive reporting catalog and export-oriented views.',
+  'Inventory Optimization': 'Cycle counts, variance control, replenishment recommendations, and ABC classification — backed by live tenant inventory.',
+  'Asset & Custody Center': 'Every custody movement is audit-backed. Disposal and write-off require approval. Controlled assets require elevated custody approval.',
   Admin: 'Tenant-scoped platform settings, users, facilities, and devices.'
 };
 
@@ -3930,7 +3940,17 @@ async function loadData() {
       aiSummary: '/api/ai/summary',
       aiRecommendations: '/api/ai/recommendations',
       aiRuns: '/api/ai/runs',
-      aiAgents: '/api/ai/agents'
+      aiAgents: '/api/ai/agents',
+      invOptSummary: '/api/inventory-optimization/summary',
+      invOptPlans: '/api/inventory-optimization/cycle-count-plans',
+      invOptVariances: '/api/inventory-optimization/variances',
+      invOptRecommendations: '/api/inventory-optimization/recommendations',
+      invOptClassifications: '/api/inventory-optimization/classifications',
+      assetCustodySummary: '/api/assets/summary',
+      assetList: '/api/assets',
+      assetMaintenance: '/api/assets/maintenance',
+      assetDisposals: '/api/assets/disposal-requests',
+      ocrStatus: '/api/ocr/status'
     };
     const extra = {};
     const result = await Promise.all(
@@ -3988,6 +4008,13 @@ async function loadData() {
       definitions: extra.reportsDefinitions,
       runs: extra.reportsRuns
     };
+    extra.invOpt = {
+      summary: extra.invOptSummary,
+      plans: extra.invOptPlans?.plans || [],
+      variances: extra.invOptVariances?.variances || [],
+      recommendations: extra.invOptRecommendations?.recommendations || [],
+      classifications: extra.invOptClassifications?.classifications || []
+    };
     extra.exports = {
       summary: extra.exportsSummary,
       candidates: extra.exportCandidates,
@@ -4010,6 +4037,12 @@ async function loadData() {
     extra.audit = {
       audit: extra.audit?.audit || [],
       summary: extra.auditSummary
+    };
+    extra.assetCustody = {
+      summary: extra.assetCustodySummary?.summary || {},
+      assets: extra.assetList?.assets || [],
+      maintenance: extra.assetMaintenance?.cases || [],
+      disposals: extra.assetDisposals?.disposalRequests || []
     };
     state.data = extra;
     state.availableRequestItems = extra.availableRequestItems;
@@ -5680,6 +5713,9 @@ export function procureToPayPage() {
   const vendorQuotes = p2p.vendorQuotes?.vendorQuotes || [];
   const vendorScorecards = p2p.vendorScorecards?.vendorScorecards || [];
   const providerStatus = state.data?.aiSummary?.providerStatus ?? 'NOT_CONFIGURED';
+  const ocrStatus = state.data?.ocrStatus?.ocrStatus || { provider: 'local', label: 'Local (Deterministic)', status: 'LOCAL', ready: true, message: 'Deterministic local extractor active.' };
+  const ocrStatusBadgeKind = ocrStatus.status === 'LOCAL' ? 'INFO' : ocrStatus.status === 'CONFIGURED' ? 'ACTIVE' : ocrStatus.status === 'ERROR' ? 'FAILED' : 'PENDING';
+  const ocrStatusLabel = { LOCAL: 'Local', CONFIGURED: 'Connected', NOT_CONFIGURED: 'Not Configured', ERROR: 'Error' }[ocrStatus.status] || ocrStatus.status;
   const canViewInvoices = can('view_vendor_invoices');
   const canViewRfqs = can('view_rfq_requests');
   const canViewQuotes = can('view_vendor_quotes');
@@ -5716,6 +5752,24 @@ export function procureToPayPage() {
       { kind: 'Exceptions', title: `${h(vendorInvoices.filter((row) => row.status === 'EXCEPTION').length)} invoice exception(s)`, detail: 'Exception queues remain honest and reviewable.' },
       { kind: 'Export posture', title: `${h(vendorInvoices.filter((row) => row.status === 'EXPORT_READY').length)} export-ready invoice(s)`, detail: 'Only validated records reach finance handoff posture.' }
     ])}
+    <section class="panel ocr-provider-status">
+      <div class="panel-head">
+        <div>
+          <h2>OCR Provider Status</h2>
+          <p>OCR proposes values only. Approval, matching, export readiness, and payment remain human-controlled.</p>
+        </div>
+        ${badge(ocrStatusBadgeKind)}
+      </div>
+      <div class="metric-grid">
+        <div class="metric"><div class="metric-label">Provider</div><div class="metric-value">${h(ocrStatus.label)}</div></div>
+        <div class="metric"><div class="metric-label">Status</div><div class="metric-value">${h(ocrStatusLabel)}</div></div>
+        <div class="metric"><div class="metric-label">Required</div><div class="metric-value">${ocrStatus.required ? 'Yes' : 'No'}</div></div>
+        <div class="metric"><div class="metric-label">Review gate</div><div class="metric-value">Human required</div></div>
+      </div>
+      <div class="muted" style="margin-top:0.5rem">${h(ocrStatus.message)}</div>
+      ${!ocrStatus.ready ? `<div class="alert-info" style="margin-top:0.75rem">External OCR extraction is disabled. ${ocrStatus.provider !== 'local' ? 'Configure OCR credentials to enable.' : 'Set OCR_PROVIDER to an external provider to enable.'} Local deterministic extraction remains available.</div>` : ''}
+      <div class="compliance-note" style="margin-top:0.5rem">Review required — OCR proposes values only. No invoice field is overwritten without explicit human acceptance. Extraction, matching, approval, and export each require separate human action.</div>
+    </section>
     <section class="split">
       <div class="panel">
         <div class="panel-head"><div><h2>Invoice Intelligence</h2><p>Invoice intake, deterministic extraction, matching, exception review, and export readiness.</p></div></div>
@@ -7409,6 +7463,235 @@ function adminPage() {
   `;
 }
 
+export function inventoryOptimizationPage() {
+  const invOpt = state.data?.invOpt || {};
+  const summary = invOpt.summary || {};
+  const plans = invOpt.plans || [];
+  const variances = invOpt.variances || [];
+  const recommendations = invOpt.recommendations || [];
+  const classifications = invOpt.classifications || [];
+
+  const kpis = [
+    { label: 'Accuracy', value: summary.accuracyPct != null ? `${Number(summary.accuracyPct).toFixed(1)}%` : '—', tone: summary.accuracyPct != null && summary.accuracyPct >= 95 ? 'ok' : 'warn' },
+    { label: 'Open variances', value: summary.openVariances ?? 0, tone: (summary.openVariances ?? 0) > 0 ? 'warn' : 'ok' },
+    { label: 'Blocker variances', value: summary.blockerVariances ?? 0, tone: (summary.blockerVariances ?? 0) > 0 ? 'alert' : 'ok' },
+    { label: 'Controlled variances', value: summary.controlledVariances ?? 0, tone: (summary.controlledVariances ?? 0) > 0 ? 'alert' : 'ok' },
+    { label: 'Cycle counts due', value: summary.cycleDue ?? 0, tone: (summary.cycleDue ?? 0) > 0 ? 'warn' : 'neutral' },
+    { label: 'Reorder risks', value: summary.reorderRisks ?? 0, tone: (summary.reorderRisks ?? 0) > 0 ? 'warn' : 'neutral' },
+    { label: 'Stockout risks', value: summary.stockoutRisks ?? 0, tone: (summary.stockoutRisks ?? 0) > 0 ? 'alert' : 'ok' }
+  ];
+
+  const planStatusTone = { DRAFT: 'neutral', SCHEDULED: 'info', IN_PROGRESS: 'warn', REVIEW_PENDING: 'warn', APPROVED: 'ok', POSTED: 'ok', CANCELLED: 'muted' };
+  const varianceTone = { OPEN: 'warn', UNDER_REVIEW: 'warn', APPROVED: 'ok', REJECTED: 'muted', POSTED: 'ok', WAIVED: 'muted' };
+  const severityTone = { INFO: 'neutral', WARNING: 'warn', BLOCKER: 'alert' };
+  const recTone = { OPEN: 'warn', REVIEWED: 'info', APPROVED: 'ok', CONVERTED_TO_REQUEST: 'ok', DISMISSED: 'muted', EXPIRED: 'muted' };
+  const priorityTone = { CRITICAL: 'alert', HIGH: 'warn', MEDIUM: 'info', LOW: 'neutral' };
+  const classificationTone = { A: 'alert', B: 'warn', C: 'neutral' };
+
+  return `
+    ${hero('Inventory Optimization Center', 'Cycle counts, variance control, replenishment planning, and ABC classification — backed by live tenant inventory data. Recommendations are reviewable. Stock adjustments require approved posting.')}
+    <section class="status-strip">
+      ${kpis.map((kpi) => `
+        <div class="status-card compact ${kpi.tone || 'neutral'}">
+          <span>${h(kpi.label)}</span>
+          <strong>${h(kpi.value)}</strong>
+        </div>
+      `).join('')}
+    </section>
+
+    <section class="split">
+      <div class="panel">
+        <div class="section-head">
+          <div><h2>Cycle Count Plans</h2><p>Scheduled and active inventory count plans across facilities.</p></div>
+          <div class="actions">
+            <button class="btn-primary" data-action="create-cycle-count-plan">New Plan</button>
+          </div>
+        </div>
+        ${table(plans, ['Plan', 'Scope', 'Status', 'Scheduled', 'Lines'], (row) => `
+          <tr>
+            <td><strong>${h(row.plan_no)}</strong><div class="muted">${h(row.title)}</div></td>
+            <td>${h(row.scope_type || 'FULL')}</td>
+            <td>${badge(row.status, planStatusTone[row.status] || 'neutral')}</td>
+            <td>${h(row.scheduled_date ? fmt(row.scheduled_date) : '—')}</td>
+            <td>${h(row.line_count ?? '—')}</td>
+          </tr>
+        `)}
+      </div>
+      <div class="panel">
+        <div class="section-head">
+          <div><h2>Variance Review Queue</h2><p>Counted quantities that differ from expected. Controlled-item variances require elevated approval.</p></div>
+        </div>
+        ${table(variances, ['Item', 'Variance', 'Severity', 'Status', 'Controlled'], (row) => `
+          <tr>
+            <td><strong>${h(row.item_name || row.item_id)}</strong><div class="muted">${h(row.sku || '')}</div></td>
+            <td>${h(row.variance_qty > 0 ? '+' : '')}${h(Number(row.variance_qty || 0).toFixed(0))} <span class="muted">(${h(Number(row.variance_pct || 0).toFixed(1))}%)</span></td>
+            <td>${badge(row.severity, severityTone[row.severity] || 'neutral')}</td>
+            <td>${badge(row.status, varianceTone[row.status] || 'neutral')}</td>
+            <td>${row.controlled ? badge('Controlled', 'alert') : badge('Standard', 'ok')}</td>
+          </tr>
+        `)}
+      </div>
+    </section>
+
+    <section class="split">
+      <div class="panel">
+        <div class="section-head">
+          <div><h2>Replenishment Recommendations</h2><p>Backend-generated reorder signals from live stock, demand, and PO data. Recommendations are reviewable only — no automatic PO or request creation.</p></div>
+          <div class="actions">
+            <button class="btn-secondary" data-action="generate-replenishment-recs">Generate</button>
+          </div>
+        </div>
+        ${table(recommendations, ['Item', 'Type', 'Priority', 'On Hand', 'Suggested Qty', 'Status'], (row) => `
+          <tr>
+            <td><strong>${h(row.item_name || row.item_id)}</strong><div class="muted">${h(row.sku || '')}</div></td>
+            <td>${h(row.recommendation_type)}</td>
+            <td>${badge(row.priority, priorityTone[row.priority] || 'neutral')}</td>
+            <td>${h(Number(row.on_hand_qty || row.current_on_hand || 0).toFixed(0))}</td>
+            <td>${h(Number(row.suggested_qty || 0).toFixed(0))}</td>
+            <td>${badge(row.status, recTone[row.status] || 'neutral')}</td>
+          </tr>
+        `)}
+        <p class="muted note">Recommendations are reviewable. Stock adjustments require approved posting. Inventory accuracy is audit-backed.</p>
+      </div>
+      <div class="panel">
+        <div class="section-head">
+          <div><h2>ABC Classification</h2><p>Items ranked by inventory value, movement frequency, and criticality. Controlled items are elevated to higher review priority.</p></div>
+          <div class="actions">
+            <button class="btn-secondary" data-action="recalculate-classifications">Recalculate</button>
+          </div>
+        </div>
+        ${table(classifications, ['Item', 'Class', 'Score', 'Reason'], (row) => `
+          <tr>
+            <td><strong>${h(row.item_name || row.item_id)}</strong><div class="muted">${h(row.sku || '')}</div></td>
+            <td>${badge(row.classification, classificationTone[row.classification] || 'neutral')}</td>
+            <td>${h(Number(row.score || 0).toFixed(1))}</td>
+            <td class="muted">${h(row.reason ? row.reason.slice(0, 60) + (row.reason.length > 60 ? '…' : '') : '—')}</td>
+          </tr>
+        `)}
+        <p class="muted note">If insufficient movement history is detected, classification is based on inventory value and criticality only.</p>
+      </div>
+    </section>
+  `;
+}
+
+// ── Phase 3J: Asset & Custody Center ─────────────────────────────────────────
+
+export function assetCustodyPage() {
+  const ac = state.data?.assetCustody || {};
+  const summary = ac.summary || {};
+  const assets = ac.assets || [];
+  const maintenance = ac.maintenance || [];
+  const disposals = ac.disposals || [];
+
+  const kpis = [
+    { label: 'Total assets', value: summary.total_assets ?? 0, tone: 'neutral' },
+    { label: 'Assigned', value: summary.assigned ?? 0, tone: (summary.assigned ?? 0) > 0 ? 'info' : 'neutral' },
+    { label: 'In transfer', value: summary.in_transfer ?? 0, tone: (summary.in_transfer ?? 0) > 0 ? 'warn' : 'neutral' },
+    { label: 'Return pending', value: summary.return_pending ?? 0, tone: (summary.return_pending ?? 0) > 0 ? 'warn' : 'neutral' },
+    { label: 'Damaged / Lost', value: (summary.damaged ?? 0) + (summary.lost ?? 0), tone: ((summary.damaged ?? 0) + (summary.lost ?? 0)) > 0 ? 'alert' : 'ok' },
+    { label: 'Disposal pending', value: summary.disposal_pending ?? 0, tone: (summary.disposal_pending ?? 0) > 0 ? 'warn' : 'neutral' },
+    { label: 'Controlled assigned', value: summary.controlled_assigned ?? 0, tone: (summary.controlled_assigned ?? 0) > 0 ? 'alert' : 'ok' }
+  ];
+
+  const statusTone = {
+    AVAILABLE: 'ok', ASSIGNED: 'info', IN_TRANSFER: 'warn', RETURN_PENDING: 'warn',
+    RETURNED: 'ok', DAMAGED: 'alert', LOST: 'alert', QUARANTINED: 'warn',
+    IN_MAINTENANCE: 'warn', DISPOSAL_PENDING: 'warn', DISPOSED: 'muted', RETIRED: 'muted'
+  };
+  const disposalStatusTone = {
+    DRAFT: 'neutral', SUBMITTED: 'info', APPROVAL_PENDING: 'warn',
+    APPROVED: 'ok', REJECTED: 'muted', DISPOSED: 'muted', CANCELLED: 'muted'
+  };
+  const maintenanceStatusTone = { OPEN: 'warn', IN_PROGRESS: 'info', AWAITING_PARTS: 'warn', COMPLETED: 'ok', CANCELLED: 'muted' };
+
+  return `
+    ${hero('Asset & Custody Center', 'Every custody movement is audit-backed. Disposal and write-off require approval. Controlled assets require elevated custody approval.')}
+    <section class="status-strip">
+      ${kpis.map((kpi) => `
+        <div class="status-card compact ${kpi.tone || 'neutral'}">
+          <span>${h(kpi.label)}</span>
+          <strong>${h(kpi.value)}</strong>
+        </div>
+      `).join('')}
+    </section>
+
+    <section class="split">
+      <div class="panel">
+        <div class="section-head">
+          <div><h2>Asset Registry</h2><p>Serialized, controlled, and standard assets tracked from receipt to disposal.</p></div>
+          <div class="actions">
+            <button class="btn-primary" data-action="register-asset" type="button">Register Asset</button>
+          </div>
+        </div>
+        ${table(assets, ['Asset', 'Type', 'Category', 'Serial', 'Status', 'Custodian'], (row) => `
+          <tr>
+            <td><strong>${h(row.asset_no)}</strong><div class="muted">${h(row.name)}</div></td>
+            <td>${badge(row.asset_type || 'STANDARD', row.controlled ? 'alert' : 'neutral')}</td>
+            <td>${h(row.category || '—')}</td>
+            <td class="muted">${h(row.serial_number || '—')}</td>
+            <td>${badge(row.status, statusTone[row.status] || 'neutral')}</td>
+            <td>${h(row.custodian_name || '—')}</td>
+          </tr>
+        `)}
+      </div>
+      <div class="panel">
+        <div class="section-head">
+          <div><h2>Disposal Approval Queue</h2><p>Disposal and write-off require supervisor or admin approval. Requester cannot approve their own request.</p></div>
+        </div>
+        ${table(disposals, ['Request', 'Asset', 'Method', 'Status', 'Reason'], (row) => `
+          <tr>
+            <td><strong>${h(row.disposal_no)}</strong></td>
+            <td>${h(row.asset_name || row.asset_id)}</td>
+            <td>${h(row.disposal_method || '—')}</td>
+            <td>${badge(row.status, disposalStatusTone[row.status] || 'neutral')}</td>
+            <td class="muted">${h((row.reason || '').slice(0, 60))}${(row.reason || '').length > 60 ? '…' : ''}</td>
+          </tr>
+        `)}
+      </div>
+    </section>
+
+    <section class="split">
+      <div class="panel">
+        <div class="section-head">
+          <div><h2>Maintenance Queue</h2><p>Asset maintenance cases. Closing a case returns the asset to AVAILABLE state.</p></div>
+        </div>
+        ${table(maintenance, ['Case', 'Asset', 'Type', 'Status', 'Opened'], (row) => `
+          <tr>
+            <td><strong>${h(row.case_no)}</strong></td>
+            <td>${h(row.asset_name || row.asset_id)}<div class="muted">${h(row.asset_no || '')}</div></td>
+            <td>${h(row.maintenance_type || '—')}</td>
+            <td>${badge(row.status, maintenanceStatusTone[row.status] || 'neutral')}</td>
+            <td>${h(row.created_at ? fmt(row.created_at) : '—')}</td>
+          </tr>
+        `)}
+      </div>
+      <div class="panel">
+        <div class="section-head">
+          <div><h2>Custody Posture</h2><p>Live custody state across the asset fleet. Controlled and high-value assets are tracked separately.</p></div>
+        </div>
+        <div class="metric-grid">
+          <div class="metric"><span>Available</span><strong>${h(summary.available ?? 0)}</strong></div>
+          <div class="metric"><span>Assigned</span><strong>${h(summary.assigned ?? 0)}</strong></div>
+          <div class="metric"><span>In Transfer</span><strong>${h(summary.in_transfer ?? 0)}</strong></div>
+          <div class="metric"><span>Return Pending</span><strong>${h(summary.return_pending ?? 0)}</strong></div>
+          <div class="metric"><span>Damaged</span><strong>${h(summary.damaged ?? 0)}</strong></div>
+          <div class="metric"><span>Lost</span><strong>${h(summary.lost ?? 0)}</strong></div>
+          <div class="metric"><span>Quarantined</span><strong>${h(summary.quarantined ?? 0)}</strong></div>
+          <div class="metric"><span>In Maintenance</span><strong>${h(summary.in_maintenance ?? 0)}</strong></div>
+          <div class="metric"><span>Disposal Pending</span><strong>${h(summary.disposal_pending ?? 0)}</strong></div>
+          <div class="metric"><span>Disposed</span><strong>${h(summary.disposed ?? 0)}</strong></div>
+          <div class="metric"><span>High-value Assigned</span><strong>${h(summary.high_value_assigned ?? 0)}</strong></div>
+          <div class="metric"><span>Controlled Assigned</span><strong>${h(summary.controlled_assigned ?? 0)}</strong></div>
+        </div>
+        <div class="posture-notes">
+          <p class="muted note">Disposal and write-off require human approval and an audit-backed posting event. Disposed assets cannot be reassigned.</p>
+          <p class="muted note">Lost assets remain in LOST state until a formal custody review is conducted — they do not silently re-enter available stock.</p>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function renderPage() {
   if (currentSurface() === 'platform') return platformPageBody();
   if (state.page === 'Command Center') return shellLanding();
@@ -7432,6 +7715,8 @@ function renderPage() {
   if (state.page === 'Admin') return adminPage();
   if (state.page === 'Worker-Safe Mode') return workerPage();
   if (state.page === 'Reports') return reportsPage();
+  if (state.page === 'Inventory Optimization') return inventoryOptimizationPage();
+  if (state.page === 'Asset & Custody Center') return assetCustodyPage();
   return modulePreviewPage(state.page);
 }
 

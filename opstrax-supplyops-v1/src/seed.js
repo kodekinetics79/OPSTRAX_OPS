@@ -48,6 +48,8 @@ const featureKeys = [
   'compliance_center',
   'ask_opstrax_ai',
   'reports',
+  'inventory_optimization',
+  'asset_custody',
   'admin'
 ];
 
@@ -193,7 +195,17 @@ const permissions = [
   { key: 'query_ops_copilot', name: 'Query Ops Copilot', description: 'Submit read-only queries to the Ops Copilot.' },
   { key: 'view_reports', name: 'View reports', description: 'Read tenant and platform reporting surfaces.' },
   { key: 'run_reports', name: 'Run reports', description: 'Generate tenant report runs and downloads.' },
-  { key: 'view_restricted_ai_context', name: 'View restricted AI context', description: 'Allow AI context to include restricted/controlled items.' }
+  { key: 'view_restricted_ai_context', name: 'View restricted AI context', description: 'Allow AI context to include restricted/controlled items.' },
+  { key: 'view_inventory_optimization', name: 'View inventory optimization', description: 'Read cycle count plans, variances, recommendations, and classifications.' },
+  { key: 'manage_cycle_counts', name: 'Manage cycle counts', description: 'Create, execute, and submit cycle count plans and sessions.' },
+  { key: 'approve_variances', name: 'Approve variances', description: 'Approve, reject, waive, and post inventory variances.' },
+  { key: 'manage_replenishment', name: 'Manage replenishment', description: 'Generate, approve, dismiss, and convert replenishment recommendations.' },
+  { key: 'manage_classifications', name: 'Manage classifications', description: 'Recalculate ABC inventory classifications.' },
+  { key: 'view_asset_custody', name: 'View asset custody', description: 'Read asset registry, custody timeline, and lifecycle surfaces.' },
+  { key: 'manage_asset_registry', name: 'Manage asset registry', description: 'Create and update asset records.' },
+  { key: 'manage_asset_custody', name: 'Manage asset custody', description: 'Assign, transfer, return, report condition, and manage quarantine.' },
+  { key: 'approve_asset_disposal', name: 'Approve asset disposal', description: 'Approve, reject, and post asset disposal requests.' },
+  { key: 'manage_asset_maintenance', name: 'Manage asset maintenance', description: 'Open and close asset maintenance cases.' }
 ];
 
 const rolePermissions = {
@@ -308,10 +320,12 @@ const rolePermissions = {
     'view_sync_conflicts', 'resolve_sync_conflicts',
     'view_ai_summary', 'view_ai_recommendations', 'generate_ai_recommendations',
     'dismiss_ai_recommendations', 'approve_ai_placeholder', 'view_ai_runs', 'query_ops_copilot',
-    'view_restricted_ai_context'
+    'view_restricted_ai_context',
+    'view_inventory_optimization', 'manage_cycle_counts', 'approve_variances', 'manage_replenishment', 'manage_classifications',
+    'view_asset_custody', 'manage_asset_registry', 'manage_asset_custody', 'approve_asset_disposal', 'manage_asset_maintenance'
   ],
-  requester: ['view_dashboard', 'view_inventory', 'view_requests', 'create_request', 'submit_request', 'cancel_request', 'view_purchasing', 'view_purchase_orders', 'view_vendors', 'view_supplier_governance', 'view_contract_repository', 'view_budget_controls', 'create_purchase_request', 'update_purchase_request', 'submit_purchase_request', 'cancel_purchase_request', 'view_evidence', 'upload_evidence', 'view_audit', 'view_ai_summary', 'query_ops_copilot'],
-  worker: ['view_dashboard', 'view_inventory', 'view_requests', 'view_stock_movements', 'view_warehouse_tasks', 'execute_warehouse_tasks', 'manage_labels', 'review_sync', 'view_receiving', 'view_devices', 'record_scan_event', 'validate_scan', 'view_offline_batches', 'create_offline_batch', 'query_ops_copilot'],
+  requester: ['view_dashboard', 'view_inventory', 'view_requests', 'create_request', 'submit_request', 'cancel_request', 'view_purchasing', 'view_purchase_orders', 'view_vendors', 'view_supplier_governance', 'view_contract_repository', 'view_budget_controls', 'create_purchase_request', 'update_purchase_request', 'submit_purchase_request', 'cancel_purchase_request', 'view_evidence', 'upload_evidence', 'view_audit', 'view_ai_summary', 'query_ops_copilot', 'view_inventory_optimization', 'view_asset_custody'],
+  worker: ['view_dashboard', 'view_inventory', 'view_requests', 'view_stock_movements', 'view_warehouse_tasks', 'execute_warehouse_tasks', 'manage_labels', 'review_sync', 'view_receiving', 'view_devices', 'record_scan_event', 'validate_scan', 'view_offline_batches', 'create_offline_batch', 'query_ops_copilot', 'view_inventory_optimization', 'manage_cycle_counts', 'view_asset_custody', 'manage_asset_custody'],
   finance: [
     'view_dashboard',
     'view_inventory',
@@ -387,7 +401,9 @@ const rolePermissions = {
     'approve_purchase_order',
     'issue_purchase_order',
     'cancel_purchase_order',
-    'view_ai_summary', 'view_ai_recommendations', 'view_ai_runs', 'query_ops_copilot'
+    'view_ai_summary', 'view_ai_recommendations', 'view_ai_runs', 'query_ops_copilot',
+    'view_inventory_optimization',
+    'view_asset_custody'
   ]
 };
 

@@ -118,6 +118,96 @@ const TENANT_REPORT_DEFINITIONS = [
     description: 'Trusted, suspended, and revoked device posture for scan-driven workflows.',
     module_page: 'DeviceOps Center',
     required_feature: 'barcode_device_hub'
+  },
+  {
+    report_key: 'inventory_accuracy_summary',
+    surface: 'TENANT',
+    category: 'Inventory Optimization',
+    title: 'Inventory Accuracy Summary',
+    description: 'Cycle count accuracy posture, open variances, and controlled-item variance signals.',
+    module_page: 'Inventory Optimization',
+    required_feature: 'inventory_optimization'
+  },
+  {
+    report_key: 'cycle_count_variance_report',
+    surface: 'TENANT',
+    category: 'Inventory Optimization',
+    title: 'Cycle Count Variance Report',
+    description: 'Counted vs expected quantities, severity classification, and approval status per item.',
+    module_page: 'Inventory Optimization',
+    required_feature: 'inventory_optimization'
+  },
+  {
+    report_key: 'replenishment_recommendations_report',
+    surface: 'TENANT',
+    category: 'Inventory Optimization',
+    title: 'Replenishment Recommendations Report',
+    description: 'Backend-generated reorder and expedite signals with on-hand, reorder point, and demand context.',
+    module_page: 'Inventory Optimization',
+    required_feature: 'inventory_optimization'
+  },
+  {
+    report_key: 'abc_classification_report',
+    surface: 'TENANT',
+    category: 'Inventory Optimization',
+    title: 'ABC Classification Report',
+    description: 'Item classification (A/B/C) by value, movement, and criticality scores with insufficient-history flags.',
+    module_page: 'Inventory Optimization',
+    required_feature: 'inventory_optimization'
+  },
+  {
+    report_key: 'asset_registry_report',
+    surface: 'TENANT',
+    category: 'Asset & Custody',
+    title: 'Asset Registry Report',
+    description: 'Full asset registry with status, custodian, category, serial number, and acquisition details.',
+    module_page: 'Asset & Custody Center',
+    required_feature: 'asset_custody'
+  },
+  {
+    report_key: 'chain_of_custody_timeline_report',
+    surface: 'TENANT',
+    category: 'Asset & Custody',
+    title: 'Chain-of-Custody Timeline Report',
+    description: 'Ordered custody event log per asset: registrations, assignments, transfers, returns, damage, loss, and disposal.',
+    module_page: 'Asset & Custody Center',
+    required_feature: 'asset_custody'
+  },
+  {
+    report_key: 'asset_assignment_report',
+    surface: 'TENANT',
+    category: 'Asset & Custody',
+    title: 'Asset Assignment Report',
+    description: 'Active and historical asset assignments with custodian, department, facility, and expected return dates.',
+    module_page: 'Asset & Custody Center',
+    required_feature: 'asset_custody'
+  },
+  {
+    report_key: 'damaged_lost_asset_report',
+    surface: 'TENANT',
+    category: 'Asset & Custody',
+    title: 'Damaged / Lost Asset Report',
+    description: 'Assets in DAMAGED or LOST state with condition report descriptions and severity.',
+    module_page: 'Asset & Custody Center',
+    required_feature: 'asset_custody'
+  },
+  {
+    report_key: 'disposal_approval_report',
+    surface: 'TENANT',
+    category: 'Asset & Custody',
+    title: 'Disposal Approval Report',
+    description: 'Disposal requests with approval posture, disposal method, reason, and audit trail.',
+    module_page: 'Asset & Custody Center',
+    required_feature: 'asset_custody'
+  },
+  {
+    report_key: 'maintenance_case_report',
+    surface: 'TENANT',
+    category: 'Asset & Custody',
+    title: 'Maintenance Case Report',
+    description: 'Asset maintenance cases with type, status, description, and resolution.',
+    module_page: 'Asset & Custody Center',
+    required_feature: 'asset_custody'
   }
 ];
 
@@ -465,6 +555,52 @@ function reportColumnsFor(definition) {
       { key: 'trust_state', label: 'Trust State' },
       { key: 'last_seen_at', label: 'Last Seen' }
     ],
+    inventory_accuracy_summary: [
+      { key: 'snapshot_date', label: 'Date' },
+      { key: 'total_items', label: 'Total Items' },
+      { key: 'items_counted', label: 'Counted' },
+      { key: 'items_accurate', label: 'Accurate' },
+      { key: 'accuracy_pct', label: 'Accuracy %' },
+      { key: 'open_variances', label: 'Open Variances' },
+      { key: 'blocker_variances', label: 'Blockers' },
+      { key: 'controlled_variances', label: 'Controlled' },
+      { key: 'reorder_risks', label: 'Reorder Risks' }
+    ],
+    cycle_count_variance_report: [
+      { key: 'plan_no', label: 'Plan' },
+      { key: 'item_name', label: 'Item' },
+      { key: 'sku', label: 'SKU' },
+      { key: 'expected_qty', label: 'Expected' },
+      { key: 'counted_qty', label: 'Counted' },
+      { key: 'variance_qty', label: 'Variance' },
+      { key: 'variance_pct', label: 'Variance %' },
+      { key: 'severity', label: 'Severity' },
+      { key: 'status', label: 'Status' },
+      { key: 'controlled', label: 'Controlled' }
+    ],
+    replenishment_recommendations_report: [
+      { key: 'item_name', label: 'Item' },
+      { key: 'sku', label: 'SKU' },
+      { key: 'recommendation_type', label: 'Type' },
+      { key: 'priority', label: 'Priority' },
+      { key: 'on_hand_qty', label: 'On Hand' },
+      { key: 'reorder_point', label: 'Reorder Point' },
+      { key: 'suggested_qty', label: 'Suggested Qty' },
+      { key: 'status', label: 'Status' },
+      { key: 'reason', label: 'Reason' }
+    ],
+    abc_classification_report: [
+      { key: 'item_name', label: 'Item' },
+      { key: 'sku', label: 'SKU' },
+      { key: 'classification', label: 'Classification' },
+      { key: 'score', label: 'Score' },
+      { key: 'value_score', label: 'Value Score' },
+      { key: 'movement_score', label: 'Movement Score' },
+      { key: 'criticality_score', label: 'Criticality Score' },
+      { key: 'insufficient_history', label: 'Insufficient History' },
+      { key: 'reason', label: 'Reason' },
+      { key: 'calculated_at', label: 'Calculated' }
+    ],
     platform_tenant_summary: [
       { key: 'tenant_name', label: 'Tenant' },
       { key: 'plan_name', label: 'Plan' },
@@ -707,6 +843,142 @@ function reportDataForTenant(definition, context, filters = {}) {
         [tenantId]
       );
       return { columns: reportColumnsFor(definition), rows, summary: { rows: rows.length } };
+    }
+    case 'inventory_accuracy_summary': {
+      const rows = selectAll(
+        `SELECT snapshot_date, total_items, items_counted, items_accurate,
+                ROUND(COALESCE(accuracy_pct, 0), 2) AS accuracy_pct,
+                open_variances, blocker_variances, controlled_variances, reorder_risks
+         FROM inventory_accuracy_snapshots WHERE tenant_id = ? ORDER BY snapshot_date DESC LIMIT 90`,
+        [tenantId]
+      );
+      return { columns: reportColumnsFor(definition), rows, summary: { rows: rows.length, latestAccuracy: rows[0]?.accuracy_pct ?? null } };
+    }
+    case 'cycle_count_variance_report': {
+      const rows = selectAll(
+        `SELECT ccp.plan_no, i.name AS item_name, i.sku,
+                v.expected_qty, v.counted_qty, v.variance_qty,
+                ROUND(COALESCE(v.variance_pct, 0), 2) AS variance_pct,
+                v.severity, v.status,
+                CASE WHEN v.controlled = 1 THEN 'Yes' ELSE 'No' END AS controlled
+         FROM inventory_variances v
+         JOIN items i ON i.id = v.item_id
+         LEFT JOIN cycle_count_sessions ccs ON ccs.id = v.session_id
+         LEFT JOIN cycle_count_plans ccp ON ccp.id = ccs.plan_id
+         WHERE v.tenant_id = ? ORDER BY v.severity DESC, v.created_at DESC LIMIT 500`,
+        [tenantId]
+      );
+      return { columns: reportColumnsFor(definition), rows, summary: { rows: rows.length, blockers: rows.filter((r) => r.severity === 'BLOCKER').length } };
+    }
+    case 'replenishment_recommendations_report': {
+      const rows = selectAll(
+        `SELECT i.name AS item_name, i.sku,
+                rr.recommendation_type, rr.priority,
+                rr.on_hand_qty, rr.reorder_point, rr.suggested_qty, rr.status, rr.reason
+         FROM replenishment_recommendations rr
+         JOIN items i ON i.id = rr.item_id
+         WHERE rr.tenant_id = ? ORDER BY
+           CASE rr.priority WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 ELSE 3 END ASC,
+           rr.created_at DESC LIMIT 500`,
+        [tenantId]
+      );
+      return { columns: reportColumnsFor(definition), rows, summary: { rows: rows.length, openRecs: rows.filter((r) => r.status === 'OPEN').length } };
+    }
+    case 'abc_classification_report': {
+      const rows = selectAll(
+        `SELECT i.name AS item_name, i.sku,
+                ic.classification, ROUND(ic.score, 2) AS score,
+                ROUND(ic.value_score, 2) AS value_score,
+                ROUND(ic.movement_score, 2) AS movement_score,
+                ROUND(ic.criticality_score, 2) AS criticality_score,
+                CASE WHEN ic.insufficient_history = 1 THEN 'Yes' ELSE 'No' END AS insufficient_history,
+                ic.reason, ic.calculated_at
+         FROM inventory_classifications ic
+         JOIN items i ON i.id = ic.item_id
+         WHERE ic.tenant_id = ? ORDER BY ic.classification ASC, ic.score DESC LIMIT 500`,
+        [tenantId]
+      );
+      return { columns: reportColumnsFor(definition), rows, summary: { rows: rows.length } };
+    }
+    case 'asset_registry_report': {
+      const rows = selectAll(
+        `SELECT ar.asset_no, ar.name, ar.category, ar.subcategory, ar.serial_number, ar.asset_type,
+                ar.status, ar.acquisition_cost, ar.acquisition_date, ar.last_audit_date,
+                CASE WHEN ar.controlled = 1 THEN 'Yes' ELSE 'No' END AS controlled,
+                CASE WHEN ar.high_value = 1 THEN 'Yes' ELSE 'No' END AS high_value,
+                u.name AS custodian_name, f.name AS facility_name
+         FROM asset_records ar
+         LEFT JOIN users u ON u.id = ar.current_custodian_user_id
+         LEFT JOIN facilities f ON f.id = ar.facility_id
+         WHERE ar.tenant_id = ? ORDER BY ar.asset_no ASC LIMIT 500`,
+        [tenantId]
+      );
+      return { columns: reportColumnsFor(definition), rows, summary: { rows: rows.length } };
+    }
+    case 'chain_of_custody_timeline_report': {
+      const rows = selectAll(
+        `SELECT ar.asset_no, ar.name AS asset_name, ace.event_type, ace.status_before, ace.status_after,
+                u.name AS actor_name, ace.notes, ace.created_at
+         FROM asset_custody_events ace
+         JOIN asset_records ar ON ar.id = ace.asset_id
+         LEFT JOIN users u ON u.id = ace.actor_user_id
+         WHERE ace.tenant_id = ? ORDER BY ar.asset_no ASC, ace.created_at ASC LIMIT 1000`,
+        [tenantId]
+      );
+      return { columns: reportColumnsFor(definition), rows, summary: { rows: rows.length } };
+    }
+    case 'asset_assignment_report': {
+      const rows = selectAll(
+        `SELECT ar.asset_no, ar.name AS asset_name, aa.status,
+                u.name AS custodian_name, d.name AS department_name, f.name AS facility_name,
+                aa.assigned_at, aa.expected_return_at, aa.returned_at
+         FROM asset_assignments aa
+         JOIN asset_records ar ON ar.id = aa.asset_id
+         LEFT JOIN users u ON u.id = aa.custodian_user_id
+         LEFT JOIN departments d ON d.id = aa.department_id
+         LEFT JOIN facilities f ON f.id = aa.facility_id
+         WHERE aa.tenant_id = ? ORDER BY aa.assigned_at DESC LIMIT 500`,
+        [tenantId]
+      );
+      return { columns: reportColumnsFor(definition), rows, summary: { rows: rows.length, active: rows.filter((r) => r.status === 'ACTIVE').length } };
+    }
+    case 'damaged_lost_asset_report': {
+      const rows = selectAll(
+        `SELECT ar.asset_no, ar.name AS asset_name, ar.status,
+                acr.condition_type, acr.severity, acr.description, acr.repair_cost_estimate, acr.created_at
+         FROM asset_records ar
+         LEFT JOIN asset_condition_reports acr ON acr.asset_id = ar.id AND acr.tenant_id = ar.tenant_id
+         WHERE ar.tenant_id = ? AND ar.status IN ('DAMAGED','LOST')
+         ORDER BY acr.severity DESC, acr.created_at DESC LIMIT 500`,
+        [tenantId]
+      );
+      return { columns: reportColumnsFor(definition), rows, summary: { rows: rows.length } };
+    }
+    case 'disposal_approval_report': {
+      const rows = selectAll(
+        `SELECT adr.disposal_no, ar.asset_no, ar.name AS asset_name,
+                adr.status, adr.disposal_method, adr.disposal_value, adr.reason,
+                u.name AS requested_by_name,
+                adr.submitted_at, adr.approved_at, adr.disposed_at
+         FROM asset_disposal_requests adr
+         JOIN asset_records ar ON ar.id = adr.asset_id
+         LEFT JOIN users u ON u.id = adr.requested_by_user_id
+         WHERE adr.tenant_id = ? ORDER BY adr.created_at DESC LIMIT 500`,
+        [tenantId]
+      );
+      return { columns: reportColumnsFor(definition), rows, summary: { rows: rows.length, pending: rows.filter((r) => r.status === 'APPROVAL_PENDING').length } };
+    }
+    case 'maintenance_case_report': {
+      const rows = selectAll(
+        `SELECT amc.case_no, ar.asset_no, ar.name AS asset_name,
+                amc.maintenance_type, amc.status, amc.description, amc.resolution,
+                amc.started_at, amc.completed_at
+         FROM asset_maintenance_cases amc
+         JOIN asset_records ar ON ar.id = amc.asset_id
+         WHERE amc.tenant_id = ? ORDER BY amc.created_at DESC LIMIT 500`,
+        [tenantId]
+      );
+      return { columns: reportColumnsFor(definition), rows, summary: { rows: rows.length, open: rows.filter((r) => r.status === 'OPEN').length } };
     }
     default:
       return { columns: reportColumnsFor(definition), rows: [], summary: { rows: 0 } };

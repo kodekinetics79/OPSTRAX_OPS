@@ -138,9 +138,21 @@ OpsTrax also includes a separate platform admin control plane at `/platform` for
 - **Business value:** demonstrates how OpsTrax can be run as a multi-tenant SaaS product, not just a tenant workspace.
 - **RFP scoring point:** platform isolation, SaaS administration, support governance, tenant-plan management.
 
+### 17. Show Inventory Optimization Center
+
+- **Click:** navigate to Inventory Optimization in the AI Intelligence group
+- **Say:** "This is the Inventory Optimization Center. Cycle count plans, variance control, replenishment recommendations, and ABC classification — all backed by live tenant inventory."
+- **Show:** KPI strip showing accuracy %, open variances, BLOCKER count, and reorder risks. Cycle count plan table with CCP-0001 in IN_PROGRESS state. Variance review table with BLOCKER badge on controlled item variance.
+- **Say:** "BLOCKER variances prevent a session from being approved until they are resolved. You cannot auto-bypass this at the UI layer — the backend enforces it."
+- **Show:** replenishment recommendations table with REORDER (HIGH) and EXPEDITE_PO (MEDIUM) recommendations. Demonstrate the Generate button creates a run record backed by live stock signals.
+- **Say:** "Recommendations are advisory. Converting one to a request creates a real internal request in DRAFT state that follows the standard approval workflow. Stock is never adjusted without human approval and an explicit post action."
+- **Show:** ABC classification table with A/B/C tiers and the insufficient_history flag set to Yes for items without enough movement data.
+- **Business value:** gives inventory managers real cycle count workflows, honest variance severity tiers, and replenishment signals from live data — not fabricated dashboards.
+- **RFP scoring point:** audit-backed stock corrections, BLOCKER enforcement, tenant-isolated cycle count data, no auto-adjustment.
+
 ## Demo Value Summary
 
-This demo proves that OpsTrax is not a toy dashboard. It is a working operational foundation with live controls for requests, stock movement, procurement, receiving, evidence, audit, export posture, device trust, offline review, and governed AI.
+This demo proves that OpsTrax is not a toy dashboard. It is a working operational foundation with live controls for requests, stock movement, procurement, receiving, evidence, audit, export posture, device trust, offline review, governed AI, and now real inventory optimization with cycle counts, variance control, and replenishment intelligence.
 
 ## RFP Scoring Advantages
 
@@ -151,3 +163,4 @@ This demo proves that OpsTrax is not a toy dashboard. It is a working operationa
 - offline and device workflows that are part of the core product, not an add-on
 - governed AI posture that keeps the system safe for regulated environments
 - real export delivery (CSV + binary PDF) with formula-injection protection and per-run audit trail — no fake download buttons
+- real inventory optimization: cycle count workflows with BLOCKER variance enforcement, replenishment signals from live stock data, ABC classification with honest insufficient-history flagging

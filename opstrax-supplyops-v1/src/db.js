@@ -6,6 +6,8 @@ import { fileURLToPath as toFileURLPath } from 'node:url';
 import { createSynchronousWorkerBridge } from './sync-rpc.js';
 import { getDatabaseRuntimeSelection } from './runtime-config.js';
 import { seedData } from './seed.js';
+import { getInvOptSeedRows } from './inventory-optimization.js';
+import { getAssetCustodySeedRows } from './asset-custody.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = dirname(__dirname);
@@ -41,7 +43,10 @@ const migrations = [
   { version: 21, file: '021_platform_admin_control_plane.sql' },
   { version: 22, file: '022_platform_admin_control_plane_refresh.sql' },
   { version: 23, file: '023_platform_oidc_cutover.sql' },
-  { version: 24, file: '024_reporting_export_center.sql' }
+  { version: 24, file: '024_reporting_export_center.sql' },
+  { version: 25, file: '025_inventory_optimization.sql' },
+  { version: 26, file: '026_asset_custody_lifecycle.sql' },
+  { version: 27, file: '027_ocr_review.sql' }
 ];
 
 mkdirSync(dataDir, { recursive: true });
@@ -418,6 +423,46 @@ function seedComplianceTrustCenter() {
   }
 }
 
+function seedInventoryOptimization() {
+  if (tableCount('cycle_count_plans') > 0) return;
+  const items = db.prepare("SELECT id, controlled, restricted FROM items WHERE tenant_id='tenant_intelliflow_systems' AND status='ACTIVE' LIMIT 5").all();
+  const facilities = db.prepare('SELECT id FROM facilities LIMIT 2').all();
+  const bins = db.prepare('SELECT id FROM bins LIMIT 2').all();
+  const intelliflowUsers = db.prepare(
+    "SELECT id, (SELECT rp.role_key FROM user_roles rp WHERE rp.user_id = u.id LIMIT 1) AS role FROM users u WHERE u.tenant_id='tenant_intelliflow_systems' LIMIT 6"
+  ).all();
+  if (!items.length) return;
+  const seed = getInvOptSeedRows('tenant_intelliflow_systems', items, facilities, bins, intelliflowUsers);
+  insertRows('cycle_count_plans', seed.cycleCountPlans);
+  insertRows('cycle_count_plan_lines', seed.cycleCountPlanLines);
+  insertRows('cycle_count_sessions', seed.cycleCountSessions);
+  insertRows('cycle_count_session_lines', seed.cycleCountSessionLines);
+  insertRows('inventory_variances', seed.inventoryVariances);
+  insertRows('inventory_optimization_runs', seed.optimizationRuns);
+  insertRows('replenishment_recommendations', seed.replenishmentRecs);
+  insertRows('inventory_classifications', seed.inventoryClassifications);
+  insertRows('inventory_accuracy_snapshots', seed.accuracySnapshots);
+}
+
+function seedAssetCustody() {
+  if (tableCount('asset_records') > 0) return;
+  const users = db.prepare("SELECT id, department_id, facility_id FROM users WHERE tenant_id='tenant_intelliflow_systems' LIMIT 6").all();
+  const facilities = db.prepare("SELECT id FROM facilities LIMIT 2").all();
+  const departments = db.prepare("SELECT id FROM departments LIMIT 3").all();
+  if (!users.length) return;
+  const seed = getAssetCustodySeedRows('tenant_intelliflow_systems', users, facilities, departments);
+  insertRows('asset_records', seed.assetRecords);
+  insertRows('asset_custody_events', seed.custodyEvents);
+  insertRows('asset_assignments', seed.assignments);
+  insertRows('asset_transfer_requests', seed.transferRequests);
+  insertRows('asset_return_requests', seed.returnRequests);
+  insertRows('asset_condition_reports', seed.conditionReports);
+  insertRows('asset_maintenance_cases', seed.maintenanceCases);
+  insertRows('asset_disposal_requests', seed.disposalRequests);
+  insertRows('asset_evidence_links', seed.evidenceLinks);
+  insertRows('asset_lifecycle_snapshots', seed.lifeCycleSnapshots);
+}
+
 applyMigration();
 if (!isPostgres) {
   seedIfNeeded();
@@ -430,6 +475,8 @@ if (!isPostgres) {
   seedProcurementGovernance();
   seedProcureToPayIntelligence();
   seedComplianceTrustCenter();
+  seedInventoryOptimization();
+  seedAssetCustody();
 }
 
 export function selectAll(sql, params = []) {

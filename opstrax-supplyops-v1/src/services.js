@@ -15,11 +15,71 @@ import {
   runReport as runReportAction
 } from './reporting.js';
 import {
+  getInvOptSummary as getInvOptSummaryAction,
+  listCycleCountPlans as listCycleCountPlansAction,
+  createCycleCountPlan as createCycleCountPlanAction,
+  getCycleCountPlanDetail as getCycleCountPlanDetailAction,
+  updateCycleCountPlan as updateCycleCountPlanAction,
+  scheduleCycleCountPlan as scheduleCycleCountPlanAction,
+  startCycleCountPlan as startCycleCountPlanAction,
+  cancelCycleCountPlan as cancelCycleCountPlanAction,
+  addPlanLine as addPlanLineAction,
+  updatePlanLine as updatePlanLineAction,
+  createCountSession as createCountSessionAction,
+  getCountSessionDetail as getCountSessionDetailAction,
+  countSessionLine as countSessionLineAction,
+  submitSessionForReview as submitSessionForReviewAction,
+  approveCountSession as approveCountSessionAction,
+  postCountSession as postCountSessionAction,
+  listVariances as listVariancesAction,
+  getVarianceDetail as getVarianceDetailAction,
+  approveVariance as approveVarianceAction,
+  rejectVariance as rejectVarianceAction,
+  waiveVariance as waiveVarianceAction,
+  listRecommendations as listRecommendationsAction,
+  generateRecommendations as generateRecommendationsAction,
+  approveRecommendation as approveRecommendationAction,
+  dismissRecommendation as dismissRecommendationAction,
+  convertRecommendationToRequest as convertRecommendationToRequestAction,
+  listClassifications as listClassificationsAction,
+  recalculateClassifications as recalculateClassificationsAction,
+  buildAccuracySnapshot as buildAccuracySnapshotAction
+} from './inventory-optimization.js';
+import {
+  getAssetCustodySummary as getAssetCustodySummaryAction,
+  listAssets as listAssetsAction,
+  createAsset as createAssetAction,
+  getAssetDetail as getAssetDetailAction,
+  updateAsset as updateAssetAction,
+  getAssetTimeline as getAssetTimelineAction,
+  assignAsset as assignAssetAction,
+  createTransferRequest as createTransferRequestAction,
+  approveTransferRequest as approveTransferRequestAction,
+  createReturnRequest as createReturnRequestAction,
+  acceptReturn as acceptReturnAction,
+  createConditionReport as createConditionReportAction,
+  reportDamage as reportDamageAction,
+  reportLoss as reportLossAction,
+  quarantineAsset as quarantineAssetAction,
+  releaseQuarantine as releaseQuarantineAction,
+  openMaintenance as openMaintenanceAction,
+  closeMaintenance as closeMaintenanceAction,
+  listMaintenanceCases as listMaintenanceCasesAction,
+  listDisposalRequests as listDisposalRequestsAction,
+  createDisposalRequest as createDisposalRequestAction,
+  approveDisposalRequest as approveDisposalRequestAction,
+  rejectDisposalRequest as rejectDisposalRequestAction,
+  postDisposal as postDisposalAction,
+  addAssetEvidence as addAssetEvidenceAction,
+  getAssetEvidence as getAssetEvidenceAction
+} from './asset-custody.js';
+import {
   getPlatformOidcRuntimeSelection,
   getSessionRuntimeSelection,
   getTenantOidcRuntimeSelection
 } from './runtime-config.js';
 import { evidenceStorageStatus, getEvidenceStorageInfo, readEvidenceBinary, writeEvidenceBinary } from './evidence-storage.js';
+import { extractWithLocal, extractWithProvider, getOcrProviderStatus as getOcrProviderStatusFromModule, getOcrRuntimeConfig } from './ocr-provider.js';
 
 const evidenceAccessTtlSeconds = () => Math.max(60, Number(process.env.EVIDENCE_SIGNED_URL_TTL || process.env.OPSTRAX_EVIDENCE_SIGNED_URL_TTL || 900) || 900);
 const evidenceSigningSecret = () => process.env.EVIDENCE_SIGNING_SECRET || process.env.OPSTRAX_EVIDENCE_SIGNING_SECRET || 'opstrax-local-evidence-signing-secret';
@@ -39,6 +99,18 @@ roleCapabilities.supervisor.push('view_reports', 'run_reports');
 roleCapabilities.finance.push('view_reports', 'run_reports');
 roleCapabilities.requester.push('view_reports');
 roleCapabilities.worker.push('view_reports');
+
+roleCapabilities.admin.push('view_inventory_optimization', 'manage_cycle_counts', 'approve_variances', 'manage_replenishment', 'manage_classifications');
+roleCapabilities.supervisor.push('view_inventory_optimization', 'manage_cycle_counts', 'approve_variances', 'manage_replenishment', 'manage_classifications');
+roleCapabilities.requester.push('view_inventory_optimization');
+roleCapabilities.worker.push('view_inventory_optimization', 'manage_cycle_counts');
+roleCapabilities.finance.push('view_inventory_optimization');
+
+roleCapabilities.admin.push('view_asset_custody', 'manage_asset_registry', 'manage_asset_custody', 'approve_asset_disposal', 'manage_asset_maintenance');
+roleCapabilities.supervisor.push('view_asset_custody', 'manage_asset_registry', 'manage_asset_custody', 'approve_asset_disposal', 'manage_asset_maintenance');
+roleCapabilities.requester.push('view_asset_custody');
+roleCapabilities.worker.push('view_asset_custody', 'manage_asset_custody');
+roleCapabilities.finance.push('view_asset_custody');
 
 function rolePermissionRows(roleKey) {
   return selectAll(
@@ -4800,51 +4872,208 @@ export function extractVendorInvoice(context, vendorInvoiceId) {
     if (!['DRAFT', 'UPLOADED', 'EXTRACTION_PENDING', 'EXTRACTED', 'EXCEPTION'].includes(invoice.status)) throw fail('Invoice cannot be extracted in its current state', 409);
     const now = nowIso();
     const lines = loadVendorInvoiceLines(context, vendorInvoiceId);
-    const extractionConfidence = invoiceConfidenceFromFindings([]);
+    const ocrConfig = getOcrRuntimeConfig(process.env);
+    const providerStatus = getOcrProviderStatusFromModule(process.env);
+
+    // Local deterministic extractor — always synchronous and always available
+    const localResult = extractWithLocal(invoice, lines);
+    const extractionConfidence = ocrConfig.provider === 'local'
+      ? localResult.overall_confidence
+      : invoiceConfidenceFromFindings([]);
+
+    // Determine run status based on provider availability
+    let runStatus = 'COMPLETED';
+    let runErrorMessage = '';
+    let runProviderStatus = providerStatus.status;
+    let runProposedFields = localResult.proposed_fields;
+    let runProviderRunId = localResult.provider_run_id;
+    let runOverallConfidence = localResult.overall_confidence;
+
+    if (ocrConfig.provider !== 'local') {
+      // External provider selected — cannot call async from sync transaction
+      // Record the intent; production integration would queue a background job
+      if (!providerStatus.ready) {
+        runStatus = 'FAILED';
+        runErrorMessage = providerStatus.message;
+        runProviderStatus = 'NOT_CONFIGURED';
+        runProposedFields = {};
+        runProviderRunId = '';
+        runOverallConfidence = 0;
+      } else {
+        // Provider is CONFIGURED but we cannot make async API calls from a sync transaction.
+        // Record as PENDING — a background worker or webhook would complete it.
+        runStatus = 'PENDING';
+        runErrorMessage = '';
+        runProviderStatus = 'CONFIGURED';
+        runProposedFields = {};
+        runProviderRunId = '';
+        runOverallConfidence = 0;
+      }
+    }
+
+    const extractionStatus = runStatus === 'COMPLETED' ? 'EXTRACTED' : 'EXTRACTION_PENDING';
+    const reviewStatus = runStatus === 'COMPLETED' ? 'PENDING_REVIEW' : 'PENDING_REVIEW';
+    const invoiceNextStatus = runStatus === 'COMPLETED' ? 'EXTRACTED' : 'EXTRACTION_PENDING';
+
     execute(
       `UPDATE vendor_invoices
        SET status = ?, extraction_status = ?, extraction_requested_at = ?, extracted_at = COALESCE(extracted_at, ?), extraction_confidence = ?, match_status = ?, match_confidence = ?, updated_at = ?, updated_by_user_id = ?
        WHERE tenant_id = ? AND id = ?`,
       ['EXTRACTION_PENDING', 'EXTRACTION_PENDING', now, now, extractionConfidence, 'NOT_STARTED', 0, now, context.user.id, context.tenant.id, vendorInvoiceId]
     );
+
     insert('invoice_extraction_runs', {
       id: newId('invoice_extract'),
       tenant_id: context.tenant.id,
       vendor_invoice_id: vendorInvoiceId,
-      provider_name: 'Deterministic Demo Extractor',
-      provider_status: 'NOT_CONFIGURED',
-      status: 'COMPLETED',
-      request_payload_json: JSON.stringify({ invoice_number: invoice.invoice_number, line_count: lines.length }),
-      response_payload_json: JSON.stringify({
-        invoice_number: invoice.invoice_number,
-        vendor_name: invoice.vendor_name,
-        extracted_line_count: lines.length,
-        proposed_total_amount: invoice.total_amount,
-        confidence: extractionConfidence
-      }),
+      provider_name: ocrConfig.provider === 'local' ? 'Local Deterministic Extractor' : providerStatus.label,
+      provider_status: runProviderStatus,
+      provider_run_id: runProviderRunId,
+      overall_confidence: runOverallConfidence,
+      status: runStatus,
+      request_payload_json: JSON.stringify({ invoice_number: invoice.invoice_number, line_count: lines.length, provider: ocrConfig.provider }),
+      response_payload_json: JSON.stringify({ provider: ocrConfig.provider, status: runStatus }),
       normalized_payload_json: JSON.stringify({
         invoice_number: invoice.invoice_number,
         vendor_name: invoice.vendor_name,
         line_count: lines.length,
         total_amount: invoice.total_amount,
-        confidence: extractionConfidence
+        confidence: runOverallConfidence
       }),
-      error_message: '',
+      proposed_fields_json: JSON.stringify(runProposedFields),
+      review_status: reviewStatus,
+      error_message: runErrorMessage,
       requested_at: now,
       started_at: now,
-      completed_at: now,
+      completed_at: runStatus === 'COMPLETED' ? now : null,
       created_at: now,
       created_by_user_id: context.user.id
     });
-    execute(
-      `UPDATE vendor_invoices
-       SET status = ?, extraction_status = ?, extraction_confidence = ?, match_status = ?, updated_at = ?, updated_by_user_id = ?
-       WHERE tenant_id = ? AND id = ?`,
-      ['EXTRACTED', 'EXTRACTED', extractionConfidence, 'NOT_STARTED', nowIso(), context.user.id, context.tenant.id, vendorInvoiceId]
-    );
-    insertAudit(context, { action: 'EXTRACT_VENDOR_INVOICE', entityType: 'vendor_invoice', entityId: vendorInvoiceId, summary: `${invoice.invoice_number} extracted`, before: invoice, after: { ...invoice, status: 'EXTRACTED', extraction_status: 'EXTRACTED', extraction_confidence: extractionConfidence } });
+
+    if (runStatus === 'COMPLETED') {
+      execute(
+        `UPDATE vendor_invoices
+         SET status = ?, extraction_status = ?, extraction_confidence = ?, match_status = ?, updated_at = ?, updated_by_user_id = ?
+         WHERE tenant_id = ? AND id = ?`,
+        [invoiceNextStatus, extractionStatus, extractionConfidence, 'NOT_STARTED', nowIso(), context.user.id, context.tenant.id, vendorInvoiceId]
+      );
+    }
+
+    insertAudit(context, {
+      action: 'EXTRACT_VENDOR_INVOICE',
+      entityType: 'vendor_invoice',
+      entityId: vendorInvoiceId,
+      summary: `${invoice.invoice_number} extracted via ${ocrConfig.provider} — run status: ${runStatus}`,
+      before: invoice,
+      after: { ...invoice, status: invoiceNextStatus, extraction_status: extractionStatus, extraction_confidence: extractionConfidence, ocr_provider: ocrConfig.provider, run_status: runStatus }
+    });
     return getVendorInvoiceDetail(context, vendorInvoiceId);
   });
+}
+
+export function getOcrProviderStatus(context) {
+  requireFeature(context, 'procure_to_pay_intelligence');
+  const status = getOcrProviderStatusFromModule(process.env);
+  return {
+    provider: status.provider,
+    label: status.label,
+    status: status.status,
+    ready: status.ready,
+    message: status.message,
+    required: status.required
+  };
+}
+
+export function acceptOcrProposedFields(context, extractionRunId, body = {}) {
+  requireFeature(context, 'procure_to_pay_intelligence');
+  requireCapability(context, 'extract_vendor_invoice');
+  return transaction(() => {
+    const run = selectOne(
+      `SELECT * FROM invoice_extraction_runs WHERE tenant_id = ? AND id = ?`,
+      [context.tenant.id, extractionRunId]
+    );
+    if (!run) throw fail('Extraction run not found', 404);
+    if (run.review_status === 'ACCEPTED') throw fail('Extraction run has already been accepted', 409);
+    if (run.review_status === 'REJECTED') throw fail('Extraction run was rejected — cannot accept', 409);
+    if (run.status !== 'COMPLETED') throw fail('Extraction run is not complete — cannot accept proposed values', 409);
+
+    const acceptedFields = body.accepted_fields || {};
+    const notes = String(body.notes || '').trim().substring(0, 500);
+    const now = nowIso();
+    execute(
+      `UPDATE invoice_extraction_runs
+       SET review_status = 'ACCEPTED', reviewed_at = ?, reviewed_by_user_id = ?, review_notes = ?
+       WHERE tenant_id = ? AND id = ?`,
+      [now, context.user.id, notes, context.tenant.id, extractionRunId]
+    );
+    insertAudit(context, {
+      action: 'ACCEPT_OCR_PROPOSED_FIELDS',
+      entityType: 'invoice_extraction_run',
+      entityId: extractionRunId,
+      summary: `OCR proposed values accepted for invoice extraction run ${extractionRunId}`,
+      before: { review_status: run.review_status },
+      after: { review_status: 'ACCEPTED', accepted_fields: Object.keys(acceptedFields) }
+    });
+    return selectOne('SELECT * FROM invoice_extraction_runs WHERE tenant_id = ? AND id = ?', [context.tenant.id, extractionRunId]);
+  });
+}
+
+export function rejectOcrExtraction(context, extractionRunId, body = {}) {
+  requireFeature(context, 'procure_to_pay_intelligence');
+  requireCapability(context, 'extract_vendor_invoice');
+  return transaction(() => {
+    const run = selectOne(
+      `SELECT * FROM invoice_extraction_runs WHERE tenant_id = ? AND id = ?`,
+      [context.tenant.id, extractionRunId]
+    );
+    if (!run) throw fail('Extraction run not found', 404);
+    if (run.review_status === 'REJECTED') throw fail('Extraction run was already rejected', 409);
+    if (run.review_status === 'ACCEPTED') throw fail('Extraction run was already accepted — cannot reject', 409);
+    const reason = requireString(body.reason, 'reason', { max: 500 });
+    const now = nowIso();
+    execute(
+      `UPDATE invoice_extraction_runs
+       SET review_status = 'REJECTED', reviewed_at = ?, reviewed_by_user_id = ?, review_notes = ?
+       WHERE tenant_id = ? AND id = ?`,
+      [now, context.user.id, reason, context.tenant.id, extractionRunId]
+    );
+    insertAudit(context, {
+      action: 'REJECT_OCR_EXTRACTION',
+      entityType: 'invoice_extraction_run',
+      entityId: extractionRunId,
+      summary: `OCR extraction rejected for run ${extractionRunId}: ${reason}`,
+      before: { review_status: run.review_status },
+      after: { review_status: 'REJECTED', reason }
+    });
+    return selectOne('SELECT * FROM invoice_extraction_runs WHERE tenant_id = ? AND id = ?', [context.tenant.id, extractionRunId]);
+  });
+}
+
+export function listOcrExtractionRuns(context, vendorInvoiceId) {
+  requireFeature(context, 'procure_to_pay_intelligence');
+  requireCapability(context, 'extract_vendor_invoice');
+  return selectAll(
+    `SELECT id, tenant_id, vendor_invoice_id, provider_name, provider_status, provider_run_id,
+            overall_confidence, proposed_fields_json, status, review_status, reviewed_at, reviewed_by_user_id, review_notes,
+            error_message, requested_at, started_at, completed_at, created_at, created_by_user_id
+     FROM invoice_extraction_runs
+     WHERE tenant_id = ? AND vendor_invoice_id = ?
+     ORDER BY created_at DESC`,
+    [context.tenant.id, vendorInvoiceId]
+  );
+}
+
+export function getOcrExtractionRunDetail(context, extractionRunId) {
+  requireFeature(context, 'procure_to_pay_intelligence');
+  requireCapability(context, 'extract_vendor_invoice');
+  const run = selectOne(
+    `SELECT * FROM invoice_extraction_runs WHERE tenant_id = ? AND id = ?`,
+    [context.tenant.id, extractionRunId]
+  );
+  if (!run) throw fail('Extraction run not found', 404);
+  let proposedFields = {};
+  try { proposedFields = JSON.parse(run.proposed_fields_json || '{}'); } catch { /* noop */ }
+  return { ...run, proposed_fields: proposedFields };
 }
 
 export function matchVendorInvoice(context, vendorInvoiceId) {
@@ -9647,6 +9876,330 @@ export function queryOpsCopilot(context, body = {}) {
       { type: 'audit_denials', count: aiCtx.recentDenials.length }
     ]
   };
+}
+
+// ── Phase 3I: Inventory Optimization ─────────────────────────────────────────
+
+function requireInvOptRead(context) {
+  requireFeature(context, 'inventory_optimization');
+  requireCapability(context, 'view_inventory_optimization');
+}
+
+function requireInvOptCycleCount(context) {
+  requireFeature(context, 'inventory_optimization');
+  requireCapability(context, 'manage_cycle_counts');
+}
+
+function requireInvOptVarianceApproval(context) {
+  requireFeature(context, 'inventory_optimization');
+  requireCapability(context, 'approve_variances');
+}
+
+function requireInvOptReplenishment(context) {
+  requireFeature(context, 'inventory_optimization');
+  requireCapability(context, 'manage_replenishment');
+}
+
+function requireInvOptClassification(context) {
+  requireFeature(context, 'inventory_optimization');
+  requireCapability(context, 'manage_classifications');
+}
+
+export function getInventoryOptimizationSummary(context) {
+  requireInvOptRead(context);
+  return getInvOptSummaryAction(context.tenant.id);
+}
+
+export function listInventoryCycleCountPlans(context, filters = {}) {
+  requireInvOptRead(context);
+  return listCycleCountPlansAction(context.tenant.id, filters);
+}
+
+export function createInventoryCycleCountPlan(context, body) {
+  requireInvOptCycleCount(context);
+  return createCycleCountPlanAction(context.tenant.id, context.user.id, body);
+}
+
+export function getInventoryCycleCountPlanDetail(context, planId) {
+  requireInvOptRead(context);
+  return getCycleCountPlanDetailAction(context.tenant.id, planId);
+}
+
+export function updateInventoryCycleCountPlan(context, planId, body) {
+  requireInvOptCycleCount(context);
+  return updateCycleCountPlanAction(context.tenant.id, context.user.id, planId, body);
+}
+
+export function scheduleInventoryCycleCountPlan(context, planId, body) {
+  requireInvOptCycleCount(context);
+  return scheduleCycleCountPlanAction(context.tenant.id, context.user.id, planId, body);
+}
+
+export function startInventoryCycleCountPlan(context, planId) {
+  requireInvOptCycleCount(context);
+  return startCycleCountPlanAction(context.tenant.id, context.user.id, planId);
+}
+
+export function cancelInventoryCycleCountPlan(context, planId, body) {
+  requireInvOptCycleCount(context);
+  return cancelCycleCountPlanAction(context.tenant.id, context.user.id, planId, body);
+}
+
+export function addInventoryCycleCountPlanLine(context, planId, body) {
+  requireInvOptCycleCount(context);
+  return addPlanLineAction(context.tenant.id, context.user.id, planId, body);
+}
+
+export function updateInventoryCycleCountPlanLine(context, planId, lineId, body) {
+  requireInvOptCycleCount(context);
+  return updatePlanLineAction(context.tenant.id, context.user.id, planId, lineId, body);
+}
+
+export function createInventoryCountSession(context, planId, body) {
+  requireInvOptCycleCount(context);
+  return createCountSessionAction(context.tenant.id, context.user.id, planId, body);
+}
+
+export function getInventoryCountSessionDetail(context, sessionId) {
+  requireInvOptRead(context);
+  return getCountSessionDetailAction(context.tenant.id, sessionId);
+}
+
+export function recordCountSessionLine(context, sessionId, body) {
+  requireInvOptCycleCount(context);
+  return countSessionLineAction(context.tenant.id, context.user.id, sessionId, body);
+}
+
+export function submitCountSessionForReview(context, sessionId, body) {
+  requireInvOptCycleCount(context);
+  return submitSessionForReviewAction(context.tenant.id, context.user.id, sessionId, body);
+}
+
+export function approveInventoryCountSession(context, sessionId, body) {
+  requireInvOptVarianceApproval(context);
+  return approveCountSessionAction(context.tenant.id, context.user.id, sessionId, body);
+}
+
+export function postInventoryCountSession(context, sessionId, body) {
+  requireInvOptVarianceApproval(context);
+  return postCountSessionAction(context.tenant.id, context.user.id, sessionId, body);
+}
+
+export function listInventoryVariances(context, filters = {}) {
+  requireInvOptRead(context);
+  return listVariancesAction(context.tenant.id, filters);
+}
+
+export function getInventoryVarianceDetail(context, varianceId) {
+  requireInvOptRead(context);
+  return getVarianceDetailAction(context.tenant.id, varianceId);
+}
+
+export function approveInventoryVariance(context, varianceId, body) {
+  requireInvOptVarianceApproval(context);
+  return approveVarianceAction(context.tenant.id, context.user.id, varianceId, body);
+}
+
+export function rejectInventoryVariance(context, varianceId, body) {
+  requireInvOptVarianceApproval(context);
+  return rejectVarianceAction(context.tenant.id, context.user.id, varianceId, body);
+}
+
+export function waiveInventoryVariance(context, varianceId, body) {
+  requireInvOptVarianceApproval(context);
+  return waiveVarianceAction(context.tenant.id, context.user.id, varianceId, body);
+}
+
+export function listInventoryReplenishmentRecommendations(context, filters = {}) {
+  requireInvOptRead(context);
+  return listRecommendationsAction(context.tenant.id, filters);
+}
+
+export function generateInventoryReplenishmentRecommendations(context, body = {}) {
+  requireInvOptReplenishment(context);
+  return generateRecommendationsAction(context.tenant.id, context.user.id, body);
+}
+
+export function approveInventoryRecommendation(context, recId, body) {
+  requireInvOptReplenishment(context);
+  return approveRecommendationAction(context.tenant.id, context.user.id, recId, body);
+}
+
+export function dismissInventoryRecommendation(context, recId, body) {
+  requireInvOptReplenishment(context);
+  return dismissRecommendationAction(context.tenant.id, context.user.id, recId, body);
+}
+
+export function convertInventoryRecommendationToRequest(context, recId, body) {
+  requireInvOptReplenishment(context);
+  return convertRecommendationToRequestAction(context.tenant.id, context.user.id, recId, body);
+}
+
+export function listInventoryClassifications(context, filters = {}) {
+  requireInvOptRead(context);
+  return listClassificationsAction(context.tenant.id, filters);
+}
+
+export function recalculateInventoryClassifications(context, body = {}) {
+  requireInvOptClassification(context);
+  return recalculateClassificationsAction(context.tenant.id, context.user.id, body);
+}
+
+// ── Phase 3J: Asset & Custody Center ─────────────────────────────────────────
+
+function requireAssetCustodyRead(context) {
+  requireFeature(context, 'asset_custody');
+  requireCapability(context, 'view_asset_custody');
+}
+
+function requireAssetRegistry(context) {
+  requireFeature(context, 'asset_custody');
+  requireCapability(context, 'manage_asset_registry');
+}
+
+function requireAssetCustody(context) {
+  requireFeature(context, 'asset_custody');
+  requireCapability(context, 'manage_asset_custody');
+}
+
+function requireAssetDisposalApproval(context) {
+  requireFeature(context, 'asset_custody');
+  requireCapability(context, 'approve_asset_disposal');
+}
+
+function requireAssetMaintenance(context) {
+  requireFeature(context, 'asset_custody');
+  requireCapability(context, 'manage_asset_maintenance');
+}
+
+export function getAssetCustodySummary(context) {
+  requireAssetCustodyRead(context);
+  return getAssetCustodySummaryAction(context.tenant.id);
+}
+
+export function listAssets(context, filters = {}) {
+  requireAssetCustodyRead(context);
+  return listAssetsAction(context.tenant.id, filters);
+}
+
+export function createAsset(context, body) {
+  requireAssetRegistry(context);
+  return createAssetAction(context.tenant.id, context.user.id, body);
+}
+
+export function getAssetDetail(context, assetId) {
+  requireAssetCustodyRead(context);
+  return getAssetDetailAction(context.tenant.id, assetId);
+}
+
+export function updateAsset(context, assetId, body) {
+  requireAssetRegistry(context);
+  return updateAssetAction(context.tenant.id, context.user.id, assetId, body);
+}
+
+export function getAssetTimeline(context, assetId) {
+  requireAssetCustodyRead(context);
+  return getAssetTimelineAction(context.tenant.id, assetId);
+}
+
+export function assignAsset(context, assetId, body) {
+  requireAssetCustody(context);
+  return assignAssetAction(context.tenant.id, context.user.id, assetId, body);
+}
+
+export function createAssetTransferRequest(context, assetId, body) {
+  requireAssetCustody(context);
+  return createTransferRequestAction(context.tenant.id, context.user.id, assetId, body);
+}
+
+export function approveAssetTransferRequest(context, assetId, body) {
+  requireAssetCustody(context);
+  return approveTransferRequestAction(context.tenant.id, context.user.id, assetId, body);
+}
+
+export function createAssetReturnRequest(context, assetId, body) {
+  requireAssetCustody(context);
+  return createReturnRequestAction(context.tenant.id, context.user.id, assetId, body);
+}
+
+export function acceptAssetReturn(context, assetId, body) {
+  requireAssetCustody(context);
+  return acceptReturnAction(context.tenant.id, context.user.id, assetId, body);
+}
+
+export function createAssetConditionReport(context, assetId, body) {
+  requireAssetCustody(context);
+  return createConditionReportAction(context.tenant.id, context.user.id, assetId, body);
+}
+
+export function reportAssetDamage(context, assetId, body) {
+  requireAssetCustody(context);
+  return reportDamageAction(context.tenant.id, context.user.id, assetId, body);
+}
+
+export function reportAssetLoss(context, assetId, body) {
+  requireAssetCustody(context);
+  return reportLossAction(context.tenant.id, context.user.id, assetId, body);
+}
+
+export function quarantineAsset(context, assetId, body) {
+  requireAssetCustody(context);
+  return quarantineAssetAction(context.tenant.id, context.user.id, assetId, body);
+}
+
+export function releaseAssetQuarantine(context, assetId, body) {
+  requireAssetCustody(context);
+  return releaseQuarantineAction(context.tenant.id, context.user.id, assetId, body);
+}
+
+export function openAssetMaintenance(context, assetId, body) {
+  requireAssetMaintenance(context);
+  return openMaintenanceAction(context.tenant.id, context.user.id, assetId, body);
+}
+
+export function closeAssetMaintenance(context, caseId, body) {
+  requireAssetMaintenance(context);
+  return closeMaintenanceAction(context.tenant.id, context.user.id, caseId, body);
+}
+
+export function listAssetMaintenanceCases(context, filters = {}) {
+  requireAssetCustodyRead(context);
+  return listMaintenanceCasesAction(context.tenant.id, filters);
+}
+
+export function listAssetDisposalRequests(context, filters = {}) {
+  requireAssetCustodyRead(context);
+  return listDisposalRequestsAction(context.tenant.id, filters);
+}
+
+export function createAssetDisposalRequest(context, assetId, body) {
+  requireAssetCustody(context);
+  return createDisposalRequestAction(context.tenant.id, context.user.id, assetId, body);
+}
+
+export function approveAssetDisposalRequest(context, disposalId, body) {
+  requireAssetDisposalApproval(context);
+  return approveDisposalRequestAction(context.tenant.id, context.user.id, disposalId, body);
+}
+
+export function rejectAssetDisposalRequest(context, disposalId, body) {
+  requireAssetDisposalApproval(context);
+  return rejectDisposalRequestAction(context.tenant.id, context.user.id, disposalId, body);
+}
+
+export function postAssetDisposal(context, disposalId, body) {
+  requireAssetDisposalApproval(context);
+  return postDisposalAction(context.tenant.id, context.user.id, disposalId, body);
+}
+
+export function addAssetEvidence(context, assetId, body) {
+  requireAssetCustody(context);
+  return addAssetEvidenceAction(context.tenant.id, context.user.id, assetId, body);
+}
+
+export function getAssetEvidence(context, assetId) {
+  requireAssetCustodyRead(context);
+  return getAssetEvidenceAction(context.tenant.id, assetId);
 }
 
 export { requireCapability, capabilitySet };
