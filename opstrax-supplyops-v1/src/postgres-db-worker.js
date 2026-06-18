@@ -32,8 +32,12 @@ function normalizeSql(sql) {
   normalized = normalized.replace(/INSERT OR IGNORE INTO\s+/gi, 'INSERT INTO ');
   normalized = normalized.replace(/INSERT OR REPLACE INTO\s+/gi, 'INSERT INTO ');
   normalized = normalized.replace(/PRAGMA user_version\s*=\s*\d+;?/gi, '');
-  normalized = normalized.replace(/INSERT INTO\s+schema_migrations\s*\(\s*version\s*\)\s*VALUES\s*\(\s*\$?1?\s*\)/gi, 'INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT (version) DO NOTHING');
+  normalized = normalized.replace(/INSERT INTO\s+schema_migrations\s*\(\s*version\s*\)\s*VALUES\s*\(\s*\$?1?\s*\)/gi, 'INSERT INTO schema_migrations (version) VALUES ($$1) ON CONFLICT (version) DO NOTHING');
   normalized = normalized.replace(/\bjson_object\s*\(/gi, 'json_build_object(');
+  // Catch-all: any INSERT INTO schema_migrations that still lacks ON CONFLICT (e.g. from migration SQL files with literal values)
+  if (/^INSERT INTO\s+schema_migrations\b/i.test(normalized) && !/\bON CONFLICT\b/i.test(normalized)) {
+    normalized += ' ON CONFLICT DO NOTHING';
+  }
   return normalized;
 }
 

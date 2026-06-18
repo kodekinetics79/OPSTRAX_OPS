@@ -157,7 +157,7 @@ function applyMigration() {
     if (currentVersion >= migration.version) continue;
     const schema = readFileSync(join(migrationDir, migration.file), 'utf8');
     db.exec(schema);
-    db.prepare('INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)').run(migration.version);
+    db.prepare('INSERT INTO schema_migrations(version) VALUES (?) ON CONFLICT(version) DO NOTHING').run(migration.version);
     currentVersion = migration.version;
   }
   db.exec(`PRAGMA user_version = ${currentVersion};`);
