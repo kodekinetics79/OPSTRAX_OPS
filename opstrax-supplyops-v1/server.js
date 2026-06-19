@@ -64,6 +64,17 @@ function sendRedirect(res, location, headers = {}) {
   res.end();
 }
 
+// CORS — used when the backend is accessed directly (e.g. Railway URL) from a trusted cross-origin client.
+// When served behind Vercel proxy, requests are same-origin and CORS headers are not exercised.
+// Read ALLOWED_ORIGINS lazily on each request so it resolves after the process environment is fully set.
+function resolveAllowedOrigin(origin) {
+  if (!origin) return null;
+  const o = origin.replace(/\/$/, '');
+  const allowed = (process.env.ALLOWED_ORIGINS || process.env.APP_BASE_URL || '')
+    .split(',').map((s) => s.trim().replace(/\/$/, '')).filter(Boolean);
+  return allowed.includes(o) ? o : null;
+}
+
 function routeAction(pathname, method) {
   const base = pathname.split('/').filter(Boolean);
   if (pathname === '/api/platform/me') return 'VIEW_PLATFORM_ME';
@@ -1797,6 +1808,20 @@ async function handleJson(req, res, handler, { context, route, method, requestId
 export const server = createServer((req, res) => {
   if (req.method === 'POST' || req.method === 'PATCH' || req.method === 'PUT') {
     req.body = null;
+  }
+  const allowedOrigin = resolveAllowedOrigin(req.headers.origin);
+  if (allowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+    if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Request-Id, X-CSRF-Token, Authorization');
+      res.setHeader('Access-Control-Max-Age', '86400');
+      res.writeHead(204);
+      res.end();
+      return;
+    }
   }
   route(req, res);
 });

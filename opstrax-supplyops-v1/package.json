@@ -7,7 +7,7 @@
     "typecheck": "for f in server.js app.js src/*.js tests/*.mjs scripts/*.mjs; do node --check \"$f\"; done",
     "security": "npm install --package-lock-only --ignore-scripts >/dev/null 2>&1 && npm audit --audit-level=high --omit=dev && rm -f package-lock.json",
     "build": "node scripts/build.mjs",
-    "start": "PORT=9899 node server.js",
+    "start": "node server.js",
     "test": "node --test tests/*.mjs",
     "check": "node --test tests/*.mjs",
     "verify-migration": "node scripts/verify-migration.mjs",

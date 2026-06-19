@@ -1,7 +1,7 @@
 # OpsTrax Production Readiness Matrix — Final
 
 **Assessment date:** 2026-06-18
-**Phase:** Neon Postgres Cutover
+**Phase:** 4B — Railway + Vercel Deployment Provisioning
 **Migration version:** 28
 **Test suite:** 302/302 (Phase 3L-F — two consecutive clean runs; flake fixed)
 **Build:** OK
@@ -73,7 +73,7 @@ This matrix is strict. "Ready" means verified in the current codebase or validat
 | Area | Status | Notes |
 |---|---|---|
 | SQLite (local/test) | **Ready** | All migrations 001–028 applied and verified |
-| Neon Postgres (selected provider) | **Blocked** | DATABASE_URL not provided; Neon project not provisioned |
+| Neon Postgres (selected provider) | **Validated** | v28 applied on live Neon; seed=present; cross-tenant isolation confirmed |
 | Migration compatibility | **Verified** | Postgres worker translates PRAGMA/dialect differences at runtime |
 | SSL (Neon) | **Ready** | Auto-detected from sslmode=require in DATABASE_URL |
 | Backup / restore | **Blocked** | Backup owner, schedule, and restore drill not designated |
@@ -177,9 +177,10 @@ This matrix is strict. "Ready" means verified in the current codebase or validat
 | OCR adapter (AWS Textract) | **Implemented — externally blocked by credentials** |
 | OCR (local/demo) | **Production-ready** |
 | Auth / SSO | **Externally blocked — IdP credentials required** |
-| Neon Postgres | **Externally blocked — DATABASE_URL not provisioned in Railway** |
-| Railway backend | **Externally blocked — Railway project and env vars not provisioned** |
-| Vercel frontend | **Externally blocked — Vercel project and VITE_API_BASE_URL not provisioned** |
+| Neon Postgres | **Live — validated** — v28, seed=present, cross-tenant isolation confirmed |
+| CORS / split deployment | **Production-ready** — ALLOWED_ORIGINS enforced; Vercel proxy config in vercel.json |
+| Railway backend | **Externally blocked — Railway project and env vars not yet provisioned** |
+| Vercel frontend | **Externally blocked — Vercel project not yet provisioned; update vercel.json Railway domain** |
 | Object storage | **Externally blocked — S3 credentials required** |
 | ERP integration | **Externally blocked — ERP endpoint/credentials required** |
 | Monitoring | **Externally blocked — provider and recipients not designated** |
