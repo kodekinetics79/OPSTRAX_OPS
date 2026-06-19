@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { execute, insert, newId, nowIso, selectAll, selectOne, transaction } from './db.js';
+import { getRedisClient } from './redis-client.js';
 import {
   getPlatformOidcRuntimeSelection,
   getSessionRuntimeSelection,
@@ -239,6 +240,37 @@ export function authEnabled() {
   return Boolean(tenantOidcConfig({}).enabled);
 }
 
+// In-process session cache — avoids a DB round-trip on every authenticated request.
+// Redis is used as an async backing store for cache population and invalidation.
+// Cache TTL is short (60s) so stale sessions are quickly evicted even without
+// explicit invalidation (e.g., if the process restarts or Redis is unavailable).
+const _sessionCache = new Map();
+const _platformSessionCache = new Map();
+const SESSION_CACHE_TTL_MS = 60_000;
+
+function _getCached(cache, id) {
+  const entry = cache.get(id);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiresAt) { cache.delete(id); return undefined; }
+  return entry.session;
+}
+
+function _setCached(cache, id, session, prefix) {
+  cache.set(id, { session, expiresAt: Date.now() + SESSION_CACHE_TTL_MS });
+  try {
+    const redis = getRedisClient();
+    if (redis) redis.set(`opstrax:${prefix}:${id}`, JSON.stringify(session), { EX: Math.ceil(SESSION_CACHE_TTL_MS / 1000) }).catch(() => {});
+  } catch {}
+}
+
+function _invalidateCached(cache, id, prefix) {
+  cache.delete(id);
+  try {
+    const redis = getRedisClient();
+    if (redis) redis.del(`opstrax:${prefix}:${id}`).catch(() => {});
+  } catch {}
+}
+
 export function getSessionCookie(headers) {
   const value = parseCookies(headers.cookie || headers.Cookie || '')[AUTH_COOKIE] || '';
   return unsignValue(value, 'tenant') || '';
@@ -249,6 +281,8 @@ export function readSession(headers) {
   cleanupExpired();
   const sessionId = getSessionCookie(headers);
   if (!sessionId) return null;
+  const cached = _getCached(_sessionCache, sessionId);
+  if (cached !== undefined) return cached;
   const session = selectOne(
     `SELECT s.*, u.name AS user_name, u.email AS user_email, u.role_key, u.department_id, u.facility_id, u.active
      FROM auth_sessions s
@@ -257,6 +291,7 @@ export function readSession(headers) {
     [sessionId, nowIso()]
   );
   if (!session || !session.active) return null;
+  _setCached(_sessionCache, sessionId, session, 'sess');
   return session;
 }
 
@@ -269,6 +304,8 @@ export function readPlatformSession(headers) {
   cleanupExpired();
   const sessionId = getPlatformSessionCookie(headers);
   if (!sessionId) return null;
+  const cached = _getCached(_platformSessionCache, sessionId);
+  if (cached !== undefined) return cached;
   const session = selectOne(
     `SELECT s.*, u.display_name AS user_name, u.email AS user_email, u.role_key, u.active
      FROM platform_sessions s
@@ -277,6 +314,7 @@ export function readPlatformSession(headers) {
     [sessionId, nowIso()]
   );
   if (!session || !session.active) return null;
+  _setCached(_platformSessionCache, sessionId, session, 'platsess');
   return session;
 }
 
@@ -542,6 +580,7 @@ export function logoutSession(headers) {
     transaction(() => {
       execute('UPDATE auth_sessions SET revoked_at = ? WHERE id = ?', [nowIso(), sessionId]);
     });
+    _invalidateCached(_sessionCache, sessionId, 'sess');
   }
   return clearSessionCookie();
 }
@@ -688,6 +727,7 @@ export function logoutPlatformSession(headers) {
     transaction(() => {
       execute('UPDATE platform_sessions SET revoked_at = ? WHERE id = ?', [nowIso(), sessionId]);
     });
+    _invalidateCached(_platformSessionCache, sessionId, 'platsess');
   }
   return clearPlatformSessionCookie();
 }

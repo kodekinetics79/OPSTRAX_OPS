@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: opstrax-api
+    runtime: node
+    rootDir: opstrax-supplyops-v1
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 24
+      - key: DATABASE_PROVIDER
+        value: postgres
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAME_SITE
+        value: Lax
+      # Set these in Render dashboard — never commit secrets:
+      # DATABASE_URL
+      # REDIS_URL
+      # APP_BASE_URL
+      # ALLOWED_ORIGINS
+      # SESSION_SECRET
+      # PLATFORM_SESSION_SECRET
+      # OPSTRAX_ALLOW_DEV_CONTEXT (set to 1 for demo mode without OIDC)

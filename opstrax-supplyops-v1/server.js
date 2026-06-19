@@ -25,6 +25,7 @@ import { getDatabaseRuntimeInfo, selectOne as dbSelectOne } from './src/db.js';
 import { probeEvidenceStorage } from './src/evidence-storage.js';
 import { parseJsonBody } from './src/validation.js';
 import { getPlatformOidcRuntimeSelection, getSessionRuntimeSelection, getTenantOidcRuntimeSelection } from './src/runtime-config.js';
+import { connectRedis, pingRedis } from './src/redis-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = resolve(__filename, '..');
@@ -497,17 +498,21 @@ function route(req, res) {
         dbError = e.message;
       }
       const ready = dbOk && (process.env.NODE_ENV !== 'production' || (storageOk && authOk && integrationOk && queueOk));
-      return sendJson(res, ready ? 200 : 503, {
-        ok: ready,
-        service: 'opstrax-supplyops',
-        checks: {
+      const buildResponse = (redisStatus) => {
+        const checks = {
           db: dbOk ? 'ok' : `error: ${dbError ?? 'no migrations applied'}`,
           storage: storageOk ? 'ok' : `error: ${storageError ?? 'storage configuration required'}`,
           auth: authOk ? 'ok' : `error: ${authError ?? 'auth configuration required'}`,
           integration: integrationOk ? 'ok' : 'error: integration posture unavailable',
           queue: queueOk ? 'ok' : 'error: failed integration jobs exceed threshold'
-        }
-      });
+        };
+        if (redisStatus !== null) checks.redis = redisStatus ? 'ok' : 'error: ping failed';
+        sendJson(res, ready ? 200 : 503, { ok: ready, service: 'opstrax-supplyops', checks });
+      };
+      if (process.env.REDIS_URL) {
+        return pingRedis().then((r) => buildResponse(r)).catch(() => buildResponse(false));
+      }
+      return buildResponse(null);
     }
     if (req.method === 'GET' && url.pathname === '/api/me') {
       return sendJson(res, 200, getMe(context));
@@ -1834,6 +1839,9 @@ export function start(port = Number(process.env.PORT || 9899)) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runStartupChecks();
+  connectRedis().then((r) => {
+    if (r) console.log('[redis] connected');
+  });
   start().then(() => {
     console.log(`Opstrax SupplyOps running at http://localhost:${server.address().port}`);
   });
