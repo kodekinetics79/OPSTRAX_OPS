@@ -4,6 +4,8 @@ function toMs(value, field = 'timestamp') {
   return ms;
 }
 
+export const DEFAULT_SELLABLE_RELEASE_CONFIDENCE = 80;
+
 export function intervalsOverlap(startA, endA, startB, endB) {
   const a0 = toMs(startA, 'startA');
   const a1 = toMs(endA, 'endA');
@@ -70,34 +72,44 @@ export function scoreReleaseConfidence({ pickComplete = false, packed = false, d
   return Math.min(100, score);
 }
 
-export function unitAvailableAt(unit, atIso) {
+function reservationBlocks(unit, at) {
+  for (const reservation of unit.reservations || []) {
+    if (!['HELD', 'CONFIRMED', 'ACTIVE'].includes(String(reservation.status).toUpperCase())) continue;
+    const from = Date.parse(reservation.reserved_from);
+    const until = Date.parse(reservation.reserved_until);
+    if (from <= at && at < until) return true;
+  }
+  return false;
+}
+
+export function unitAvailableAt(unit, atIso, { minReleaseConfidence = DEFAULT_SELLABLE_RELEASE_CONFIDENCE } = {}) {
   const at = toMs(atIso, 'at');
   if (unit.blocked) return false;
   const occupancy = unit.occupancy;
   if (occupancy && String(occupancy.status).toUpperCase() === 'ACTIVE') {
     if (!occupancy.expected_release_at) return false;
     if (Date.parse(occupancy.expected_release_at) > at) return false;
+    if (Number(occupancy.release_confidence || 0) < Number(minReleaseConfidence)) return false;
   }
-  for (const reservation of unit.reservations || []) {
-    if (!['HELD', 'CONFIRMED', 'ACTIVE'].includes(String(reservation.status).toUpperCase())) continue;
-    const from = Date.parse(reservation.reserved_from);
-    const until = Date.parse(reservation.reserved_until);
-    if (from <= at && at < until) return false;
-  }
-  return true;
+  return !reservationBlocks(unit, at);
 }
 
-export function forecastCapacity(units, nowIso, horizonsHours = [0, 4, 24]) {
+export function forecastCapacity(units, nowIso, horizonsHours = [0, 4, 24], { minReleaseConfidence = DEFAULT_SELLABLE_RELEASE_CONFIDENCE } = {}) {
   const now = toMs(nowIso, 'now');
   const result = {};
   for (const hours of horizonsHours) {
-    const atIso = new Date(now + Number(hours) * 3_600_000).toISOString();
-    result[hours] = units.filter((unit) => unitAvailableAt(unit, atIso)).length;
+    const horizon = Number(hours);
+    const atIso = new Date(now + horizon * 3_600_000).toISOString();
+    result[hours] = units.filter((unit) => {
+      if (unit.blocked) return false;
+      if (horizon === 0 && unit.occupancy && String(unit.occupancy.status).toUpperCase() === 'ACTIVE') return false;
+      return unitAvailableAt(unit, atIso, { minReleaseConfidence });
+    }).length;
   }
   return result;
 }
 
-export function selectBookableUnits(units, reservedFrom, reservedUntil, quantity) {
+export function selectBookableUnits(units, reservedFrom, reservedUntil, quantity, { minReleaseConfidence = DEFAULT_SELLABLE_RELEASE_CONFIDENCE } = {}) {
   const start = toMs(reservedFrom, 'reservedFrom');
   const end = toMs(reservedUntil, 'reservedUntil');
   if (end <= start) throw new Error('reservation end must be after start');
@@ -108,6 +120,7 @@ export function selectBookableUnits(units, reservedFrom, reservedUntil, quantity
     const occupancy = unit.occupancy;
     if (occupancy && String(occupancy.status).toUpperCase() === 'ACTIVE') {
       if (!occupancy.expected_release_at || Date.parse(occupancy.expected_release_at) > start) return false;
+      if (Number(occupancy.release_confidence || 0) < Number(minReleaseConfidence)) return false;
     }
     return !(unit.reservations || []).some((reservation) => {
       if (!['HELD', 'CONFIRMED', 'ACTIVE'].includes(String(reservation.status).toUpperCase())) return false;
