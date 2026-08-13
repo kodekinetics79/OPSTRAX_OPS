@@ -25,13 +25,28 @@ test('storage bills minimum day and rounds', () => {
 test('storage bills ceiling elapsed days', () => {
   const r = computeStorageCharge({startedAt:'2026-08-10T10:00:00Z',endedAt:'2026-08-12T11:00:00Z',ratePerDay:10}); assert.equal(r.billableDays,3); assert.equal(r.amount,30);
 });
-test('release confidence increases with execution evidence', () => { assert.equal(scoreReleaseConfidence({}),35); assert.equal(scoreReleaseConfidence({pickComplete:true,packed:true,dockAssigned:true,carrierConfirmed:true,loaded:true}),100); });
-test('future availability respects release time and reservations', () => {
-  const unit={occupancy:{status:'ACTIVE',expected_release_at:'2026-08-13T12:00:00Z'},reservations:[{status:'CONFIRMED',reserved_from:'2026-08-13T13:00:00Z',reserved_until:'2026-08-13T16:00:00Z'}]};
-  assert.equal(unitAvailableAt(unit,'2026-08-13T11:00:00Z'),false); assert.equal(unitAvailableAt(unit,'2026-08-13T12:30:00Z'),true); assert.equal(unitAvailableAt(unit,'2026-08-13T14:00:00Z'),false);
+test('release confidence increases with execution evidence', () => {
+  assert.equal(scoreReleaseConfidence({}),35);
+  assert.equal(scoreReleaseConfidence({pickComplete:true,packed:true,dockAssigned:true,carrierConfirmed:true,loaded:true}),100);
 });
-test('capacity forecast counts released space', () => {
-  const units=[{},{occupancy:{status:'ACTIVE',expected_release_at:'2026-08-13T13:00:00Z'},reservations:[]}];
+test('future availability respects release confidence and reservations', () => {
+  const unit={occupancy:{status:'ACTIVE',expected_release_at:'2026-08-13T12:00:00Z',release_confidence:90},reservations:[{status:'CONFIRMED',reserved_from:'2026-08-13T13:00:00Z',reserved_until:'2026-08-13T16:00:00Z'}]};
+  assert.equal(unitAvailableAt(unit,'2026-08-13T11:00:00Z'),false);
+  assert.equal(unitAvailableAt(unit,'2026-08-13T12:30:00Z'),true);
+  assert.equal(unitAvailableAt(unit,'2026-08-13T14:00:00Z'),false);
+});
+test('low-confidence future release is not firm sellable capacity', () => {
+  const unit={occupancy:{status:'ACTIVE',expected_release_at:'2026-08-13T12:00:00Z',release_confidence:65},reservations:[]};
+  assert.equal(unitAvailableAt(unit,'2026-08-13T13:00:00Z'),false);
+  assert.equal(selectBookableUnits([unit],'2026-08-13T13:00:00Z','2026-08-13T14:00:00Z',1).short,1);
+});
+test('capacity forecast never calls an active occupancy available now', () => {
+  const units=[{},{occupancy:{status:'ACTIVE',expected_release_at:'2026-08-13T09:00:00Z',release_confidence:100},reservations:[]}];
+  const f=forecastCapacity(units,'2026-08-13T10:00:00Z',[0]);
+  assert.equal(f[0],1);
+});
+test('capacity forecast counts high-confidence released space in the future', () => {
+  const units=[{},{occupancy:{status:'ACTIVE',expected_release_at:'2026-08-13T13:00:00Z',release_confidence:90},reservations:[]}];
   const f=forecastCapacity(units,'2026-08-13T10:00:00Z',[0,4]); assert.equal(f[0],1); assert.equal(f[4],2);
 });
 test('bookable selection avoids overlapping reservations', () => {
