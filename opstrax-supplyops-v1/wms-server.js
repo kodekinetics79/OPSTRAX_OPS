@@ -8,7 +8,6 @@ import { auditDenied, resolveContext } from './src/services.js';
 import { ensureWmsSchema } from './src/wms-schema.js';
 import {
   allocateWmsInventory,
-  checkInWmsHandlingUnit,
   createWmsCapacityUnit,
   getWmsControlTower,
   getWmsCustomerEconomics,
@@ -16,12 +15,15 @@ import {
   listWmsBillableEvents,
   listWmsCapacity,
   listWmsHandlingUnits,
-  recordWmsQuality,
-  releaseWmsHandlingUnit,
   reserveWmsCapacity,
   saveWmsCustomerContract,
   syncWmsCapacityFromBins
 } from './src/wms.js';
+import {
+  checkInWmsHandlingUnitSafe as checkInWmsHandlingUnit,
+  recordWmsQualitySafe as recordWmsQuality,
+  releaseWmsHandlingUnitSafe as releaseWmsHandlingUnit
+} from './src/wms-safety.js';
 
 const baseHandlers = server.listeners('request');
 const baseHandler = baseHandlers[0];
@@ -56,7 +58,13 @@ async function readJson(req, maxBytes = Number(process.env.WMS_MAX_JSON_BYTES ||
   if (!chunks.length) return {};
   const raw = Buffer.concat(chunks).toString('utf8').trim();
   if (!raw) return {};
-  try { return JSON.parse(raw); } catch { const error = new Error('Request body must be valid JSON'); error.status = 400; throw error; }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const error = new Error('Request body must be valid JSON');
+    error.status = 400;
+    throw error;
+  }
 }
 
 function wmsAction(pathname, method) {
@@ -132,7 +140,11 @@ async function handleWms(req, res) {
   } catch (error) {
     const status = Number(error.status || 500);
     if (context && (status === 403 || status === 409)) {
-      try { auditDenied(context, { route: url.pathname, method: req.method, action: wmsAction(url.pathname, req.method), reason: error.message, requestId }); } catch { /* audit must not mask primary denial */ }
+      try {
+        auditDenied(context, { route: url.pathname, method: req.method, action: wmsAction(url.pathname, req.method), reason: error.message, requestId });
+      } catch {
+        // Audit failure must not mask the primary denial.
+      }
     }
     if (status >= 500) process.stderr.write(`[wms] ERROR ${req.method} ${url.pathname} ${requestId}: ${error.stack || error.message}\n`);
     sendJson(res, status, { error: status === 500 && process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message, requestId });
@@ -152,6 +164,8 @@ export function startWms(port = Number(process.env.PORT || 9899)) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runStartupChecks();
-  connectRedis().then((redis) => { if (redis) console.log('[redis] connected'); });
+  connectRedis().then((redis) => {
+    if (redis) console.log('[redis] connected');
+  });
   startWms().then(() => console.log(`OpsTrax Warehouse Profitability OS running at http://localhost:${server.address().port}`));
 }
