@@ -1,84 +1,91 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const dir = mkdtempSync(join(tmpdir(), 'opstrax-wms-http-'));
-process.env.OPSTRAX_DB_PATH = join(dir, 'wms-http.sqlite');
+const dir = mkdtempSync(join(tmpdir(), 'opstrax-wms-integration-'));
+process.env.OPSTRAX_DB_PATH = join(dir, 'wms-integration.sqlite');
 process.env.OPSTRAX_ALLOW_DEV_CONTEXT = '1';
 
-const { startWms, server } = await import('../wms-server.js');
-const HEADERS = {
+const { db } = await import('../src/db.js');
+const { resolveContext, listInventoryItems } = await import('../src/services.js');
+const { ensureWmsSchema } = await import('../src/wms-schema.js');
+const {
+  checkInWmsHandlingUnit,
+  getWmsControlTower,
+  listWmsBillableEvents,
+  listWmsCapacity,
+  recordWmsQuality,
+  releaseWmsHandlingUnit,
+  saveWmsCustomerContract
+} = await import('../src/wms.js');
+
+ensureWmsSchema();
+
+const context = resolveContext(new Headers({
   'x-tenant-id': 'tenant_intelliflow_systems',
   'x-user-id': 'tenant_intelliflow_systems_user_admin'
-};
+}));
+context.requestId = 'wms-integration-test';
+const facilityId = context.user.facility_id;
 
-async function request(port, path, { method = 'GET', body } = {}) {
-  const response = await fetch(`http://127.0.0.1:${port}${path}`, {
-    method,
-    headers: { ...HEADERS, ...(body ? { 'content-type': 'application/json' } : {}) },
-    body: body ? JSON.stringify(body) : undefined
+after(() => {
+  try { db.close?.(); } catch {}
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('warehouse journey connects capacity, quality, release and 3PL billing', () => {
+  const tower = getWmsControlTower(context, { facilityId });
+  assert.ok(tower.capacity.total > 0, 'existing bins should seed sellable capacity positions');
+
+  const capacity = listWmsCapacity(context, { facilityId });
+  const free = capacity.units.find((unit) => !unit.occupancy && !unit.blocked);
+  assert.ok(free, 'an available capacity position is required');
+
+  const item = listInventoryItems(context)[0];
+  assert.ok(item?.id, 'seeded inventory item required');
+
+  const customerRef = `WMS-TEST-${Date.now()}`;
+  saveWmsCustomerContract(context, {
+    customerRef,
+    receivingRatePerUnit: 4.5,
+    storageRatePerUnitDay: 8.25,
+    outboundRatePerUnit: 3.25,
+    minimumBillableDays: 1
   });
-  const payload = await response.json().catch(() => ({}));
-  return { response, payload };
-}
 
-test('warehouse journey connects capacity, quality, release and 3PL billing', async () => {
-  const srv = await startWms(0);
-  const port = srv.address().port;
-  try {
-    const tower = await request(port, '/api/wms/control-tower');
-    assert.equal(tower.response.status, 200);
-    assert.ok(tower.payload.capacity.total > 0, 'existing bins should seed sellable capacity positions');
+  const checkIn = checkInWmsHandlingUnit(context, {
+    facilityId,
+    capacityUnitId: free.id,
+    lpn: `LPN-${Date.now()}`,
+    customerRef,
+    itemId: item.id,
+    quantity: 10,
+    uom: 'EA',
+    qualityRequired: true
+  });
+  assert.equal(checkIn.handlingUnit.inventory_status, 'RECEIVED_NOT_INSPECTED');
+  assert.equal(checkIn.billable.pricing_status, 'PRICED');
 
-    const capacity = await request(port, '/api/wms/capacity');
-    const free = capacity.payload.units.find((u) => !u.occupancy && !u.blocked);
-    assert.ok(free, 'an available capacity position is required');
+  const huId = checkIn.handlingUnit.id;
+  const quality = recordWmsQuality(context, huId, {
+    acceptedQty: 10,
+    rejectedQty: 0,
+    reason: 'Inspection passed'
+  });
+  assert.equal(quality.handlingUnit.inventory_status, 'AVAILABLE');
 
-    const inventory = await request(port, '/api/inventory/items');
-    const item = inventory.payload.items[0];
-    assert.ok(item?.id, 'seeded inventory item required');
+  const release = releaseWmsHandlingUnit(context, huId, { reason: 'SHIPPED' });
+  assert.equal(release.billing.length, 2);
+  assert.equal(release.billing.every((event) => event.pricing_status === 'PRICED'), true);
 
-    const customerRef = `WMS-TEST-${Date.now()}`;
-    const contract = await request(port, '/api/wms/contracts', {
-      method: 'POST',
-      body: { customerRef, receivingRatePerUnit: 4.5, storageRatePerUnitDay: 8.25, outboundRatePerUnit: 3.25, minimumBillableDays: 1 }
-    });
-    assert.equal(contract.response.status, 200);
+  const billing = listWmsBillableEvents(context, { customerRef }).events;
+  assert.ok(billing.some((event) => event.event_type === 'RECEIVING'));
+  assert.ok(billing.some((event) => event.event_type === 'STORAGE'));
+  assert.ok(billing.some((event) => event.event_type === 'OUTBOUND_HANDLING'));
 
-    const checkIn = await request(port, '/api/wms/handling-units/check-in', {
-      method: 'POST',
-      body: { facilityId: free.facility_id, capacityUnitId: free.id, lpn: `LPN-${Date.now()}`, customerRef, itemId: item.id, quantity: 10, uom: 'EA', qualityRequired: true }
-    });
-    assert.equal(checkIn.response.status, 200);
-    assert.equal(checkIn.payload.handlingUnit.inventory_status, 'RECEIVED_NOT_INSPECTED');
-    assert.equal(checkIn.payload.billable.pricing_status, 'PRICED');
-
-    const huId = checkIn.payload.handlingUnit.id;
-    const quality = await request(port, `/api/wms/handling-units/${huId}/quality`, {
-      method: 'POST', body: { acceptedQty: 10, rejectedQty: 0, reason: 'Inspection passed' }
-    });
-    assert.equal(quality.response.status, 200);
-    assert.equal(quality.payload.handlingUnit.inventory_status, 'AVAILABLE');
-
-    const release = await request(port, `/api/wms/handling-units/${huId}/release`, { method: 'POST', body: { reason: 'SHIPPED' } });
-    assert.equal(release.response.status, 200);
-    assert.equal(release.payload.billing.length, 2);
-    assert.equal(release.payload.billing.every((b) => b.pricing_status === 'PRICED'), true);
-
-    const billing = await request(port, `/api/wms/billing/events?customerRef=${encodeURIComponent(customerRef)}`);
-    assert.equal(billing.response.status, 200);
-    assert.ok(billing.payload.events.some((e) => e.event_type === 'RECEIVING'));
-    assert.ok(billing.payload.events.some((e) => e.event_type === 'STORAGE'));
-    assert.ok(billing.payload.events.some((e) => e.event_type === 'OUTBOUND_HANDLING'));
-
-    const after = await request(port, '/api/wms/capacity');
-    const same = after.payload.units.find((u) => u.id === free.id);
-    assert.equal(Boolean(same.occupancy), false, 'space should be sellable again after release');
-  } finally {
-    server.closeAllConnections?.();
-    await new Promise((resolve) => server.close(resolve));
-    rmSync(dir, { recursive: true, force: true });
-  }
+  const afterRelease = listWmsCapacity(context, { facilityId });
+  const same = afterRelease.units.find((unit) => unit.id === free.id);
+  assert.equal(Boolean(same.occupancy), false, 'space should be sellable again after release');
 });
