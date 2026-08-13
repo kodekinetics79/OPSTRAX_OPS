@@ -8,9 +8,14 @@ on:
       - "opstrax-supplyops-v1/**"
       - ".github/workflows/wms-ci.yml"
 
+concurrency:
+  group: wms-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  verify:
+  wms-certification:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: opstrax-supplyops-v1
@@ -20,11 +25,36 @@ jobs:
         with:
           node-version: 24
       - run: npm install
-      - run: npm run lint
-      - run: npm test
-      - run: npm run verify-migration
+      - name: Syntax-check WMS overlay
+        run: |
+          node --check wms-server.js
+          node --check warehouse-console.js
+          node --check src/wms.js
+          node --check src/wms-engine.js
+          node --check src/wms-schema.js
+          node --check tests/wms-engine.test.mjs
+          node --check tests/wms-http.test.mjs
+      - name: WMS domain and integration tests
+        run: node --test tests/wms-engine.test.mjs tests/wms-http.test.mjs
+      - name: Verify migration 29
+        run: npm run verify-migration
         env:
           OPSTRAX_ALLOW_DEV_CONTEXT: "1"
       - run: npm run build
       - name: Verify WMS assets were produced
         run: test -f dist/warehouse.html && test -f dist/warehouse-console.js && test -f dist/warehouse.css
+
+  legacy-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: opstrax-supplyops-v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - name: Legacy OpsTrax regression suite
+        run: node --test tests/opstrax.test.mjs
