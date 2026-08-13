@@ -1,0 +1,30 @@
+name: WMS CI
+
+on:
+  push:
+    branches: ["agent/opstrax-enterprise-wms"]
+  pull_request:
+    paths:
+      - "opstrax-supplyops-v1/**"
+      - ".github/workflows/wms-ci.yml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: opstrax-supplyops-v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - run: npm run lint
+      - run: npm test
+      - run: npm run verify-migration
+        env:
+          OPSTRAX_ALLOW_DEV_CONTEXT: "1"
+      - run: npm run build
+      - name: Verify WMS assets were produced
+        run: test -f dist/warehouse.html && test -f dist/warehouse-console.js && test -f dist/warehouse.css
