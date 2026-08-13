@@ -1,0 +1,29 @@
+name: WMS Legacy Regression
+
+on:
+  push:
+    branches: ["agent/opstrax-enterprise-wms"]
+  pull_request:
+    paths:
+      - "opstrax-supplyops-v1/**"
+      - ".github/workflows/wms-legacy-regression.yml"
+
+concurrency:
+  group: wms-legacy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: opstrax-supplyops-v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - name: Legacy OpsTrax regression assertions
+        run: node --test --test-force-exit tests/opstrax.test.mjs
