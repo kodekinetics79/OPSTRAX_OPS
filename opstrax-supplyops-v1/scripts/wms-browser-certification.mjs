@@ -21,11 +21,15 @@ async function responseJson(response) {
   return response.json().catch(async () => ({ raw: await response.text().catch(() => '') }));
 }
 
-async function refreshWarehouse(page) {
+async function waitForHandlingUnitRefresh(page, action) {
   const responsePromise = page.waitForResponse((response) => response.url().includes('/api/wms/handling-units?') && response.request().method() === 'GET');
-  await page.locator('#refresh').click();
+  await action();
   const response = await responsePromise;
   assert(response.status() === 200, `Warehouse refresh failed HTTP ${response.status()}`);
+}
+
+async function refreshWarehouse(page) {
+  await waitForHandlingUnitRefresh(page, () => page.locator('#refresh').click());
 }
 
 try {
@@ -104,9 +108,9 @@ try {
   await receivedRow.getByText('RECEIVED_NOT_INSPECTED', { exact: true }).waitFor();
   await page.screenshot({ path: join(evidenceDir, '03-received-quality-gated.png'), fullPage: true });
 
-  await page.getByRole('button', { name: 'Quality & Holds' }).click();
+  await waitForHandlingUnitRefresh(page, () => page.getByRole('button', { name: 'Quality & Holds' }).click());
   const qualityForm = page.locator('tr').filter({ hasText: lpn }).locator('.inline-quality').first();
-  assert(await qualityForm.count(), 'Quality form for received LPN was not rendered');
+  await qualityForm.waitFor({ state: 'visible' });
   await qualityForm.locator('input[name="acceptedQty"]').fill('10');
   await qualityForm.locator('input[name="rejectedQty"]').fill('0');
   await qualityForm.locator('input[name="reason"]').fill('Visible Chromium acceptance');
@@ -116,9 +120,7 @@ try {
   assert(qualityResponse.status() === 200, `Quality decision failed HTTP ${qualityResponse.status()}: ${JSON.stringify(await responseJson(qualityResponse))}`);
   await page.screenshot({ path: join(evidenceDir, '04-quality-released.png'), fullPage: true });
 
-  const receiveRefreshPromise = page.waitForResponse((response) => response.url().includes('/api/wms/handling-units?') && response.request().method() === 'GET');
-  await page.getByRole('button', { name: 'Receive & Place' }).click();
-  await receiveRefreshPromise;
+  await waitForHandlingUnitRefresh(page, () => page.getByRole('button', { name: 'Receive & Place' }).click());
   const row = page.locator('tr').filter({ hasText: lpn }).first();
   await row.getByText('AVAILABLE', { exact: true }).waitFor();
   let dialogCount = 0;
