@@ -4,7 +4,7 @@ services:
     runtime: node
     rootDir: opstrax-supplyops-v1
     buildCommand: npm install
-    startCommand: node server.js
+    startCommand: node wms-server.js
     healthCheckPath: /healthz
     envVars:
       - key: NODE_VERSION
