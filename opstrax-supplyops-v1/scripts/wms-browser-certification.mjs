@@ -79,7 +79,11 @@ try {
   assert(itemId, 'Browser journey could not select an inventory item');
   await receive.locator('input[name="quantity"]').fill('10');
   await receive.locator('input[name="uom"]').fill('EA');
+  const checkInResponsePromise = page.waitForResponse((response) => response.url().includes('/api/wms/handling-units/check-in') && response.request().method() === 'POST');
   await receive.getByRole('button', { name: 'Check in & place' }).click();
+  const checkInResponse = await checkInResponsePromise;
+  const checkInBody = await checkInResponse.json().catch(async () => ({ raw: await checkInResponse.text().catch(() => '') }));
+  assert(checkInResponse.status() === 200, `Check-in failed HTTP ${checkInResponse.status()}: ${JSON.stringify(checkInBody)} | toast=${await page.locator('#toast').textContent()}`);
   await page.locator('#toast').filter({ hasText: 'Handling unit placed' }).waitFor();
   await page.getByText(lpn, { exact: true }).waitFor();
   await page.screenshot({ path: join(evidenceDir, '03-received-quality-gated.png'), fullPage: true });
@@ -116,14 +120,14 @@ try {
   await page.screenshot({ path: join(evidenceDir, '06-3pl-billing-evidence.png'), fullPage: true });
 
   const facilityId = await page.locator('#facility').inputValue();
-  const [capacity, balances, movements] = await page.evaluate(async ({ facilityId, itemId }) => {
+  const [capacity, balances, movements] = await page.evaluate(async ({ facilityId }) => {
     const [capacityResponse, balanceResponse, movementResponse] = await Promise.all([
       fetch(`/api/wms/capacity?facilityId=${encodeURIComponent(facilityId)}`),
       fetch('/api/inventory/balances'),
       fetch('/api/inventory/movements')
     ]);
     return [await capacityResponse.json(), await balanceResponse.json(), await movementResponse.json()];
-  }, { facilityId, itemId });
+  }, { facilityId });
   const released = capacity.units.find((unit) => unit.id === capacityUnitId);
   assert(released && !released.occupancy, 'Physical position was not released after shipment');
   assert((movements.movements || []).some((movement) => movement.reference_id && movement.movement_type === 'WMS_SHIP'), 'Canonical inventory movement for WMS shipment is not visible');
