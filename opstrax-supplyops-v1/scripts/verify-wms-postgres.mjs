@@ -29,7 +29,14 @@ try {
   } = await import('../src/wms-safety.js');
 
   const tenantCount = Number(selectOne('SELECT COUNT(*) AS count FROM tenants')?.count || 0);
-  if (!tenantCount) await import('./seed-production-runtime.mjs');
+  if (!tenantCount) {
+    process.env.OPSTRAX_SEED_KEEP_DB_OPEN = '1';
+    try {
+      await import('./seed-production-runtime.mjs');
+    } finally {
+      delete process.env.OPSTRAX_SEED_KEEP_DB_OPEN;
+    }
+  }
   ensureWmsSchema();
 
   const version = Number(selectOne('SELECT COALESCE(MAX(version),0) AS version FROM schema_migrations')?.version || 0);
