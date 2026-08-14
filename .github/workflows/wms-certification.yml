@@ -2,7 +2,7 @@ name: WMS Certification
 
 on:
   push:
-    branches: ["agent/opstrax-enterprise-wms"]
+    branches: ["agent/opstrax-enterprise-wms", "opstrax-phase-2e-p2p-intelligence"]
   pull_request:
     paths:
       - "opstrax-supplyops-v1/**"
@@ -29,7 +29,9 @@ jobs:
         run: |
           node --check wms-server.js
           node --check warehouse-console.js
+          node --check warehouse-ux.js
           node --check src/wms.js
+          node --check src/wms-safety.js
           node --check src/wms-engine.js
           node --check src/wms-schema.js
           node --check tests/wms-engine.test.mjs
@@ -42,4 +44,4 @@ jobs:
           OPSTRAX_ALLOW_DEV_CONTEXT: "1"
       - run: npm run build
       - name: Verify WMS assets
-        run: test -f dist/warehouse.html && test -f dist/warehouse-console.js && test -f dist/warehouse.css
+        run: test -f dist/warehouse.html && test -f dist/warehouse-console.js && test -f dist/warehouse-ux.js && test -f dist/warehouse.css
