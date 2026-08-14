@@ -4,7 +4,7 @@ process.env.NODE_ENV ||= 'production';
 process.env.DATABASE_PROVIDER ||= process.env.OPSTRAX_DB_PROVIDER || 'postgres';
 process.env.EVIDENCE_STORAGE_PROVIDER ||= process.env.OPSTRAX_EVIDENCE_STORAGE || 's3';
 
-const { getDatabaseRuntimeInfo, selectOne } = await import('../src/db.js');
+const { db, getDatabaseRuntimeInfo, selectOne } = await import('../src/db.js');
 const { ensureWmsSchema } = await import('../src/wms-schema.js');
 const {
   getTenantById, getUserById, getProcurementSummary, listSupplierContracts, listDepartmentBudgets,
@@ -15,7 +15,12 @@ async function seedIfNeeded() {
   const tenantCount = Number(selectOne('SELECT COUNT(*) AS count FROM tenants')?.count || 0);
   if (tenantCount > 0) return false;
   process.env.OPSTRAX_VALIDATE_SEED = '1';
-  await import('./seed-production-runtime.mjs');
+  process.env.OPSTRAX_SEED_KEEP_DB_OPEN = '1';
+  try {
+    await import('./seed-production-runtime.mjs');
+  } finally {
+    delete process.env.OPSTRAX_SEED_KEEP_DB_OPEN;
+  }
   return true;
 }
 function buildContext(tenantId, userId) { return { tenant: getTenantById(tenantId), user: getUserById(userId), device: null, requestId: 'verify-postgres-runtime' }; }
@@ -47,7 +52,10 @@ try {
     assert(denied, 'Cross-tenant vendor access should be denied');
   }
   process.stdout.write(`[verify-postgres] OK provider=postgres version=29 seed=${seeded ? 'applied' : 'present'} wms=ready procurement=${procurement.summary.vendors}\n`);
+  try { db.close?.(); } catch {}
   process.exit(0);
 } catch (error) {
-  process.stderr.write(`[verify-postgres] ERROR ${error.message}\n`); process.exit(1);
+  process.stderr.write(`[verify-postgres] ERROR ${error.message}\n`);
+  try { db.close?.(); } catch {}
+  process.exit(1);
 }
