@@ -1,4 +1,5 @@
 const $ = (selector, root = document) => root.querySelector(selector);
+let csrfToken = '';
 
 function notify(message, isError = false) {
   const node = document.getElementById('toast');
@@ -13,18 +14,25 @@ function notify(message, isError = false) {
 }
 
 async function json(path, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
   const response = await fetch(path, {
     credentials: 'include',
     ...options,
     headers: {
       accept: 'application/json',
       ...(options.body ? { 'content-type': 'application/json' } : {}),
+      ...(['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) && csrfToken ? { 'x-csrf-token': csrfToken } : {}),
       ...(options.headers || {})
     }
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
   return payload;
+}
+
+async function initializeSecurityContext() {
+  const bootstrap = await json('/api/bootstrap');
+  csrfToken = bootstrap.session?.csrf_token || '';
 }
 
 function activeReservations(unit) {
@@ -112,8 +120,12 @@ async function allocateAndShip(button) {
   if (hu.inventory_status !== 'AVAILABLE') throw new Error(`Only AVAILABLE inventory can ship; current status is ${hu.inventory_status}`);
   let outboundReference = '';
   if (hu.item_id) {
-    outboundReference = window.prompt('Outbound / sales order reference', `SO-${Date.now()}`) || '';
+    outboundReference = window.prompt('Outbound / sales order reference', `SO-${hu.lpn}`) || '';
     if (!outboundReference.trim()) throw new Error('Outbound / sales order reference is required');
+  }
+  const confirmed = window.confirm(`Allocate and ship ${hu.lpn}${outboundReference ? ` against ${outboundReference}` : ''}, then release its space?`);
+  if (!confirmed) return;
+  if (hu.item_id) {
     await json('/api/wms/allocations', {
       method: 'POST',
       body: JSON.stringify({
@@ -125,8 +137,6 @@ async function allocateAndShip(button) {
       })
     });
   }
-  const confirmed = window.confirm(`Ship ${hu.lpn}${outboundReference ? ` against ${outboundReference}` : ''} and release its space?`);
-  if (!confirmed) return;
   await json(`/api/wms/handling-units/${encodeURIComponent(handlingUnitId)}/release`, {
     method: 'POST',
     body: JSON.stringify({ reason: 'SHIPPED', outboundReference })
@@ -155,4 +165,6 @@ installReleaseInterceptor();
 const observer = new MutationObserver(() => enhance().catch((error) => notify(error.message, true)));
 observer.observe(document.getElementById('content'), { childList: true, subtree: true });
 document.getElementById('facility')?.addEventListener('change', () => setTimeout(() => enhance().catch((error) => notify(error.message, true)), 0));
-enhance().catch((error) => notify(error.message, true));
+initializeSecurityContext()
+  .then(() => enhance())
+  .catch((error) => notify(error.message, true));
