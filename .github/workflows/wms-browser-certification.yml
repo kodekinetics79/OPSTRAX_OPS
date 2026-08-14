@@ -1,0 +1,39 @@
+name: WMS Browser Certification
+
+on:
+  push:
+    branches: ["agent/opstrax-enterprise-wms"]
+  pull_request:
+    paths:
+      - "opstrax-supplyops-v1/**"
+      - ".github/workflows/wms-browser-certification.yml"
+
+concurrency:
+  group: wms-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: opstrax-supplyops-v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run visible WMS journey in Chromium
+        run: node scripts/wms-browser-certification.mjs
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wms-browser-evidence-${{ github.sha }}
+          path: opstrax-supplyops-v1/artifacts/wms-browser/*.png
+          if-no-files-found: warn
+          retention-days: 14
