@@ -81,8 +81,7 @@ try {
   await page.screenshot({ path: join(evidenceDir, '03-received-quality-gated.png'), fullPage: true });
 
   await page.getByRole('button', { name: 'Quality & Holds' }).click();
-  const qualityRow = page.locator('.inline-quality').filter({ has: page.locator(`xpath=ancestor::tr[.//*[contains(normalize-space(.), '${lpn}')]]`) });
-  const qualityForm = qualityRow.first();
+  const qualityForm = page.locator('tr').filter({ hasText: lpn }).locator('.inline-quality').first();
   assert(await qualityForm.count(), 'Quality form for received LPN was not rendered');
   await qualityForm.locator('input[name="acceptedQty"]').fill('10');
   await qualityForm.locator('input[name="rejectedQty"]').fill('0');
@@ -105,8 +104,8 @@ try {
 
   await page.getByRole('button', { name: 'Receive & Place' }).click();
   const row = page.locator('tr').filter({ hasText: lpn }).first();
-  await row.getByRole('button', { name: 'Release / ship' }).click();
   page.once('dialog', (dialog) => dialog.accept());
+  await row.getByRole('button', { name: 'Release / ship' }).click();
   await page.locator('#toast').filter({ hasText: 'Space released' }).waitFor();
   await page.screenshot({ path: join(evidenceDir, '05-shipped-space-released.png'), fullPage: true });
 
