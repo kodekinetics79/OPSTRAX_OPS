@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 const root = process.cwd();
 const distDir = join(root, 'dist');
-const assets = ['index.html', 'app.js', 'styles.css', 'warehouse.html', 'warehouse-console.js', 'warehouse.css'];
+const assets = ['index.html', 'app.js', 'styles.css', 'warehouse.html', 'warehouse-console.js', 'warehouse-ux.js', 'warehouse.css'];
 
 rmSync(distDir, { recursive: true, force: true });
 mkdirSync(distDir, { recursive: true });
