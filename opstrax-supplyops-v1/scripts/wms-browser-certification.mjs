@@ -139,12 +139,16 @@ try {
   assert(dialogCount >= 2, 'Visible ship journey must request outbound reference and shipment confirmation');
   await page.screenshot({ path: join(evidenceDir, '05-allocated-shipped-space-released.png'), fullPage: true });
 
+  const billingResponsePromise = page.waitForResponse((response) => response.url().includes('/api/wms/billing/events') && response.request().method() === 'GET');
+  const economicsResponsePromise = page.waitForResponse((response) => response.url().includes('/api/wms/economics/customers') && response.request().method() === 'GET');
   await page.getByRole('button', { name: '3PL Revenue' }).click();
+  const [billingResponse, economicsResponse] = await Promise.all([billingResponsePromise, economicsResponsePromise]);
+  assert(billingResponse.status() === 200, `Billing workspace failed HTTP ${billingResponse.status()}`);
+  assert(economicsResponse.status() === 200, `Economics workspace failed HTTP ${economicsResponse.status()}`);
   await page.getByText(customerRef, { exact: true }).first().waitFor();
-  const billingText = await page.locator('#content').innerText();
-  assert(billingText.includes('RECEIVING'), 'Receiving billing evidence is not visible');
-  assert(billingText.includes('STORAGE'), 'Storage billing evidence is not visible');
-  assert(billingText.includes('OUTBOUND_HANDLING'), 'Outbound billing evidence is not visible');
+  await page.getByText('RECEIVING', { exact: true }).first().waitFor();
+  await page.getByText('STORAGE', { exact: true }).first().waitFor();
+  await page.getByText('OUTBOUND_HANDLING', { exact: true }).first().waitFor();
   await page.screenshot({ path: join(evidenceDir, '06-3pl-billing-evidence.png'), fullPage: true });
 
   const facilityId = await page.locator('#facility').inputValue();
