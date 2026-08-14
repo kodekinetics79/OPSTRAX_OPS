@@ -68,13 +68,17 @@ try {
   const receive = page.locator('#receive-form');
   await receive.locator('input[name="lpn"]').fill(lpn);
   await receive.locator('input[name="customerRef"]').fill(customerRef);
+  const spaceSelect = receive.locator('select[name="capacityUnitId"]');
+  await page.waitForFunction(() => [...document.querySelectorAll('#receive-form select[name="capacityUnitId"] option')].some((option) => option.textContent.includes('reserved for this customer')));
+  const reservedOption = spaceSelect.locator('option', { hasText: 'reserved for this customer' }).first();
+  const capacityUnitId = await reservedOption.getAttribute('value');
+  assert(capacityUnitId, 'Customer reservation was not offered to receiving');
+  await spaceSelect.selectOption(capacityUnitId);
   await receive.locator('select[name="itemId"]').selectOption({ index: 1 });
   const itemId = await receive.locator('select[name="itemId"]').inputValue();
   assert(itemId, 'Browser journey could not select an inventory item');
   await receive.locator('input[name="quantity"]').fill('10');
   await receive.locator('input[name="uom"]').fill('EA');
-  const capacityUnitId = await receive.locator('select[name="capacityUnitId"]').inputValue();
-  assert(capacityUnitId, 'Browser journey could not select a capacity position');
   await receive.getByRole('button', { name: 'Check in & place' }).click();
   await page.locator('#toast').filter({ hasText: 'Handling unit placed' }).waitFor();
   await page.getByText(lpn, { exact: true }).waitFor();
@@ -90,24 +94,18 @@ try {
   await page.locator('#toast').filter({ hasText: 'Quality decision posted' }).waitFor();
   await page.screenshot({ path: join(evidenceDir, '04-quality-released.png'), fullPage: true });
 
-  const facilityId = await page.locator('#facility').inputValue();
-  const allocation = await page.evaluate(async ({ facilityId, itemId, demandId }) => {
-    const response = await fetch('/api/wms/allocations', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ facilityId, itemId, demandType: 'SALES_ORDER', demandId, quantity: 10 })
-    });
-    return { status: response.status, body: await response.json() };
-  }, { facilityId, itemId, demandId });
-  assert(allocation.status === 200, `Allocation failed: ${JSON.stringify(allocation.body)}`);
-  assert(Number(allocation.body.allocated) === 10, 'Browser journey did not allocate the full quantity');
-
   await page.getByRole('button', { name: 'Receive & Place' }).click();
   const row = page.locator('tr').filter({ hasText: lpn }).first();
-  page.once('dialog', (dialog) => dialog.accept());
+  let dialogCount = 0;
+  page.on('dialog', async (dialog) => {
+    dialogCount += 1;
+    if (dialog.type() === 'prompt') await dialog.accept(demandId);
+    else await dialog.accept();
+  });
   await row.getByRole('button', { name: 'Release / ship' }).click();
-  await page.locator('#toast').filter({ hasText: 'Space released' }).waitFor();
-  await page.screenshot({ path: join(evidenceDir, '05-shipped-space-released.png'), fullPage: true });
+  await page.locator('#toast').filter({ hasText: 'Inventory allocated, shipped, billed, and space released.' }).waitFor();
+  assert(dialogCount >= 2, 'Visible ship journey must request outbound reference and shipment confirmation');
+  await page.screenshot({ path: join(evidenceDir, '05-allocated-shipped-space-released.png'), fullPage: true });
 
   await page.getByRole('button', { name: '3PL Revenue' }).click();
   await page.getByText(customerRef, { exact: true }).first().waitFor();
@@ -117,15 +115,22 @@ try {
   assert(billingText.includes('OUTBOUND_HANDLING'), 'Outbound billing evidence is not visible');
   await page.screenshot({ path: join(evidenceDir, '06-3pl-billing-evidence.png'), fullPage: true });
 
-  const capacity = await page.evaluate(async (facilityId) => {
-    const response = await fetch(`/api/wms/capacity?facilityId=${encodeURIComponent(facilityId)}`);
-    return response.json();
-  }, facilityId);
+  const facilityId = await page.locator('#facility').inputValue();
+  const [capacity, balances, movements] = await page.evaluate(async ({ facilityId, itemId }) => {
+    const [capacityResponse, balanceResponse, movementResponse] = await Promise.all([
+      fetch(`/api/wms/capacity?facilityId=${encodeURIComponent(facilityId)}`),
+      fetch('/api/inventory/balances'),
+      fetch('/api/inventory/movements')
+    ]);
+    return [await capacityResponse.json(), await balanceResponse.json(), await movementResponse.json()];
+  }, { facilityId, itemId });
   const released = capacity.units.find((unit) => unit.id === capacityUnitId);
   assert(released && !released.occupancy, 'Physical position was not released after shipment');
+  assert((movements.movements || []).some((movement) => movement.reference_id && movement.movement_type === 'WMS_SHIP'), 'Canonical inventory movement for WMS shipment is not visible');
+  assert(Array.isArray(balances.balances), 'Canonical inventory balances are not reachable from WMS runtime');
   assert(consoleErrors.length === 0, `Browser console errors: ${consoleErrors.join(' | ')}`);
 
-  process.stdout.write(`[wms-browser-certification] OK customer=${customerRef} lpn=${lpn} screenshots=6\n`);
+  process.stdout.write(`[wms-browser-certification] OK customer=${customerRef} lpn=${lpn} order=${demandId} screenshots=6\n`);
   await context.close();
   await browser.close();
   browser = null;
