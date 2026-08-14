@@ -1,0 +1,51 @@
+name: WMS PostgreSQL Certification
+
+on:
+  push:
+    branches: ["agent/opstrax-enterprise-wms"]
+  pull_request:
+    paths:
+      - "opstrax-supplyops-v1/**"
+      - ".github/workflows/wms-postgres-certification.yml"
+
+concurrency:
+  group: wms-postgres-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: opstrax
+          POSTGRES_PASSWORD: opstrax
+          POSTGRES_DB: opstrax
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U opstrax -d opstrax"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    defaults:
+      run:
+        working-directory: opstrax-supplyops-v1
+    env:
+      DATABASE_PROVIDER: postgres
+      DATABASE_URL: postgresql://opstrax:opstrax@127.0.0.1:5432/opstrax
+      OPSTRAX_PG_SSL: "false"
+      OPSTRAX_VALIDATE_SEED: "1"
+      OPSTRAX_ALLOW_DEV_CONTEXT: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - name: Verify PostgreSQL migration and legacy services
+        run: node scripts/verify-postgres.mjs
+      - name: Verify WMS journey on PostgreSQL
+        run: node scripts/verify-wms-postgres.mjs
