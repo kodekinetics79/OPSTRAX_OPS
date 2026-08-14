@@ -2,7 +2,7 @@ name: WMS Browser Certification
 
 on:
   push:
-    branches: ["agent/opstrax-enterprise-wms"]
+    branches: ["agent/opstrax-enterprise-wms", "opstrax-phase-2e-p2p-intelligence"]
   pull_request:
     paths:
       - "opstrax-supplyops-v1/**"
