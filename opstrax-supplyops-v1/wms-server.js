@@ -7,7 +7,6 @@ import { authEnabled, requireCsrf } from './src/auth.js';
 import { auditDenied, resolveContext } from './src/services.js';
 import { ensureWmsSchema } from './src/wms-schema.js';
 import {
-  allocateWmsInventory,
   createWmsCapacityUnit,
   getWmsControlTower,
   getWmsCustomerEconomics,
@@ -20,6 +19,7 @@ import {
   syncWmsCapacityFromBins
 } from './src/wms.js';
 import {
+  allocateWmsInventorySafe as allocateWmsInventory,
   checkInWmsHandlingUnitSafe as checkInWmsHandlingUnit,
   recordWmsQualitySafe as recordWmsQuality,
   releaseWmsHandlingUnitSafe as releaseWmsHandlingUnit
