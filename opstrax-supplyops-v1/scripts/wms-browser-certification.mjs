@@ -17,6 +17,10 @@ let server;
 let db;
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
+async function responseJson(response) {
+  return response.json().catch(async () => ({ raw: await response.text().catch(() => '') }));
+}
+
 try {
   ({ db } = await import('../src/db.js'));
   const wmsServer = await import('../wms-server.js');
@@ -53,15 +57,19 @@ try {
   await contract.locator('input[name="receivingRatePerUnit"]').fill('4.50');
   await contract.locator('input[name="storageRatePerUnitDay"]').fill('8.25');
   await contract.locator('input[name="outboundRatePerUnit"]').fill('3.25');
+  const contractResponsePromise = page.waitForResponse((response) => response.url().endsWith('/api/wms/contracts') && response.request().method() === 'POST');
   await contract.getByRole('button', { name: 'Save rate card' }).click();
-  await page.locator('#toast').filter({ hasText: 'Rate card saved' }).waitFor();
+  const contractResponse = await contractResponsePromise;
+  assert(contractResponse.status() === 200, `Rate card failed HTTP ${contractResponse.status()}: ${JSON.stringify(await responseJson(contractResponse))}`);
 
   await page.getByRole('button', { name: 'Space & Capacity' }).click();
   const reserve = page.locator('#reserve-form');
   await reserve.locator('input[name="customerRef"]').fill(customerRef);
   await reserve.locator('input[name="quantity"]').fill('1');
+  const reserveResponsePromise = page.waitForResponse((response) => response.url().endsWith('/api/wms/capacity/reservations') && response.request().method() === 'POST');
   await reserve.getByRole('button', { name: 'Reserve capacity' }).click();
-  await page.locator('#toast').filter({ hasText: 'Capacity reserved' }).waitFor();
+  const reserveResponse = await reserveResponsePromise;
+  assert(reserveResponse.status() === 200, `Capacity reservation failed HTTP ${reserveResponse.status()}: ${JSON.stringify(await responseJson(reserveResponse))}`);
   await page.screenshot({ path: join(evidenceDir, '02-capacity-reserved.png'), fullPage: true });
 
   await page.getByRole('button', { name: 'Receive & Place' }).click();
@@ -82,10 +90,10 @@ try {
   const checkInResponsePromise = page.waitForResponse((response) => response.url().includes('/api/wms/handling-units/check-in') && response.request().method() === 'POST');
   await receive.getByRole('button', { name: 'Check in & place' }).click();
   const checkInResponse = await checkInResponsePromise;
-  const checkInBody = await checkInResponse.json().catch(async () => ({ raw: await checkInResponse.text().catch(() => '') }));
-  assert(checkInResponse.status() === 200, `Check-in failed HTTP ${checkInResponse.status()}: ${JSON.stringify(checkInBody)} | toast=${await page.locator('#toast').textContent()}`);
-  await page.locator('#toast').filter({ hasText: 'Handling unit placed' }).waitFor();
+  const checkInBody = await responseJson(checkInResponse);
+  assert(checkInResponse.status() === 200, `Check-in failed HTTP ${checkInResponse.status()}: ${JSON.stringify(checkInBody)}`);
   await page.getByText(lpn, { exact: true }).waitFor();
+  await page.getByText('RECEIVED_NOT_INSPECTED', { exact: true }).waitFor();
   await page.screenshot({ path: join(evidenceDir, '03-received-quality-gated.png'), fullPage: true });
 
   await page.getByRole('button', { name: 'Quality & Holds' }).click();
@@ -94,20 +102,28 @@ try {
   await qualityForm.locator('input[name="acceptedQty"]').fill('10');
   await qualityForm.locator('input[name="rejectedQty"]').fill('0');
   await qualityForm.locator('input[name="reason"]').fill('Visible Chromium acceptance');
+  const qualityResponsePromise = page.waitForResponse((response) => response.url().includes(`/api/wms/handling-units/${checkInBody.handlingUnit.id}/quality`) && response.request().method() === 'POST');
   await qualityForm.getByRole('button', { name: 'Post' }).click();
-  await page.locator('#toast').filter({ hasText: 'Quality decision posted' }).waitFor();
+  const qualityResponse = await qualityResponsePromise;
+  assert(qualityResponse.status() === 200, `Quality decision failed HTTP ${qualityResponse.status()}: ${JSON.stringify(await responseJson(qualityResponse))}`);
   await page.screenshot({ path: join(evidenceDir, '04-quality-released.png'), fullPage: true });
 
   await page.getByRole('button', { name: 'Receive & Place' }).click();
   const row = page.locator('tr').filter({ hasText: lpn }).first();
+  await row.getByText('AVAILABLE', { exact: true }).waitFor();
   let dialogCount = 0;
   page.on('dialog', async (dialog) => {
     dialogCount += 1;
     if (dialog.type() === 'prompt') await dialog.accept(demandId);
     else await dialog.accept();
   });
+  const allocationResponsePromise = page.waitForResponse((response) => response.url().endsWith('/api/wms/allocations') && response.request().method() === 'POST');
+  const releaseResponsePromise = page.waitForResponse((response) => response.url().includes(`/api/wms/handling-units/${checkInBody.handlingUnit.id}/release`) && response.request().method() === 'POST');
   await row.getByRole('button', { name: 'Release / ship' }).click();
-  await page.locator('#toast').filter({ hasText: 'Inventory allocated, shipped, billed, and space released.' }).waitFor();
+  const allocationResponse = await allocationResponsePromise;
+  assert(allocationResponse.status() === 200, `Visible allocation failed HTTP ${allocationResponse.status()}: ${JSON.stringify(await responseJson(allocationResponse))}`);
+  const releaseResponse = await releaseResponsePromise;
+  assert(releaseResponse.status() === 200, `Visible shipment failed HTTP ${releaseResponse.status()}: ${JSON.stringify(await responseJson(releaseResponse))}`);
   assert(dialogCount >= 2, 'Visible ship journey must request outbound reference and shipment confirmation');
   await page.screenshot({ path: join(evidenceDir, '05-allocated-shipped-space-released.png'), fullPage: true });
 
@@ -120,17 +136,17 @@ try {
   await page.screenshot({ path: join(evidenceDir, '06-3pl-billing-evidence.png'), fullPage: true });
 
   const facilityId = await page.locator('#facility').inputValue();
-  const [capacity, balances, movements] = await page.evaluate(async ({ facilityId }) => {
+  const [capacity, balances, movements] = await page.evaluate(async (facilityId) => {
     const [capacityResponse, balanceResponse, movementResponse] = await Promise.all([
       fetch(`/api/wms/capacity?facilityId=${encodeURIComponent(facilityId)}`),
       fetch('/api/inventory/balances'),
       fetch('/api/inventory/movements')
     ]);
     return [await capacityResponse.json(), await balanceResponse.json(), await movementResponse.json()];
-  }, { facilityId });
+  }, facilityId);
   const released = capacity.units.find((unit) => unit.id === capacityUnitId);
   assert(released && !released.occupancy, 'Physical position was not released after shipment');
-  assert((movements.movements || []).some((movement) => movement.reference_id && movement.movement_type === 'WMS_SHIP'), 'Canonical inventory movement for WMS shipment is not visible');
+  assert((movements.movements || []).some((movement) => movement.reference_id === checkInBody.handlingUnit.id && movement.movement_type === 'WMS_SHIP'), 'Canonical inventory movement for WMS shipment is not visible');
   assert(Array.isArray(balances.balances), 'Canonical inventory balances are not reachable from WMS runtime');
   assert(consoleErrors.length === 0, `Browser console errors: ${consoleErrors.join(' | ')}`);
 
