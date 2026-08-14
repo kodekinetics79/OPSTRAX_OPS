@@ -21,6 +21,13 @@ async function responseJson(response) {
   return response.json().catch(async () => ({ raw: await response.text().catch(() => '') }));
 }
 
+async function refreshWarehouse(page) {
+  const responsePromise = page.waitForResponse((response) => response.url().includes('/api/wms/handling-units?') && response.request().method() === 'GET');
+  await page.locator('#refresh').click();
+  const response = await responsePromise;
+  assert(response.status() === 200, `Warehouse refresh failed HTTP ${response.status()}`);
+}
+
 try {
   ({ db } = await import('../src/db.js'));
   const wmsServer = await import('../wms-server.js');
@@ -92,8 +99,9 @@ try {
   const checkInResponse = await checkInResponsePromise;
   const checkInBody = await responseJson(checkInResponse);
   assert(checkInResponse.status() === 200, `Check-in failed HTTP ${checkInResponse.status()}: ${JSON.stringify(checkInBody)}`);
-  await page.getByText(lpn, { exact: true }).waitFor();
-  await page.getByText('RECEIVED_NOT_INSPECTED', { exact: true }).waitFor();
+  await refreshWarehouse(page);
+  const receivedRow = page.locator('tr').filter({ hasText: lpn }).first();
+  await receivedRow.getByText('RECEIVED_NOT_INSPECTED', { exact: true }).waitFor();
   await page.screenshot({ path: join(evidenceDir, '03-received-quality-gated.png'), fullPage: true });
 
   await page.getByRole('button', { name: 'Quality & Holds' }).click();
@@ -108,7 +116,9 @@ try {
   assert(qualityResponse.status() === 200, `Quality decision failed HTTP ${qualityResponse.status()}: ${JSON.stringify(await responseJson(qualityResponse))}`);
   await page.screenshot({ path: join(evidenceDir, '04-quality-released.png'), fullPage: true });
 
+  const receiveRefreshPromise = page.waitForResponse((response) => response.url().includes('/api/wms/handling-units?') && response.request().method() === 'GET');
   await page.getByRole('button', { name: 'Receive & Place' }).click();
+  await receiveRefreshPromise;
   const row = page.locator('tr').filter({ hasText: lpn }).first();
   await row.getByText('AVAILABLE', { exact: true }).waitFor();
   let dialogCount = 0;
