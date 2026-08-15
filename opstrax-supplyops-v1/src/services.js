@@ -192,7 +192,7 @@ function inventoryItemSelectSql({ includeRestricted = false, itemId = null, move
       LEFT JOIN item_categories ic ON ic.id = i.item_category_id
       LEFT JOIN stock_balances sb ON sb.item_id = i.id AND sb.tenant_id = i.tenant_id
       WHERE i.tenant_id = ?${restrictedClause}${itemFilterClause}
-      GROUP BY i.id
+      GROUP BY i.id, ic.name
       ORDER BY low_stock DESC, i.name ASC
     `,
     itemParams: itemId ? [itemId] : [],
@@ -736,7 +736,7 @@ function listInventoryItemRows(context, { includeRestricted = false } = {}) {
       LEFT JOIN item_categories ic ON ic.id = i.item_category_id
       LEFT JOIN stock_balances sb ON sb.item_id = i.id AND sb.tenant_id = i.tenant_id
       WHERE i.tenant_id = ?${restrictedClause}
-      GROUP BY i.id
+      GROUP BY i.id, ic.name
       ORDER BY low_stock DESC, i.name ASC
     `,
     params
@@ -1553,7 +1553,7 @@ export function listAvailableRequestItems(context) {
         AND i.active = 1
         AND i.status != 'INACTIVE'
         AND (${includeRestricted ? '1=1' : 'COALESCE(i.controlled, i.restricted, 0) = 0'})
-      GROUP BY i.id
+      GROUP BY i.id, ic.name
       ORDER BY low_stock DESC, i.name ASC
     `,
     [facilityId, context.tenant.id]
