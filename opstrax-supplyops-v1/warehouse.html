@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>OpsTrax Warehouse Profitability OS</title>
+  <link rel="stylesheet" href="/warehouse.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">OT</div><div><strong>OpsTrax</strong><span>Warehouse Profitability OS</span></div></div>
+      <nav id="nav">
+        <button data-page="tower" class="active">Control Tower</button>
+        <button data-page="space">Space & Capacity</button>
+        <button data-page="receive">Receive & Place</button>
+        <button data-page="quality">Quality & Holds</button>
+        <button data-page="billing">3PL Revenue</button>
+        <button data-page="exceptions">Exceptions</button>
+      </nav>
+      <a class="back" href="/">← Main OpsTrax workspace</a>
+    </aside>
+    <main>
+      <header class="topbar">
+        <div><p class="eyebrow">WAREHOUSE EXECUTION + ECONOMICS</p><h1 id="page-title">Control Tower</h1><p id="page-note">Know what is occupied, what becomes available next, and what each movement is worth.</p></div>
+        <div class="top-actions"><label>Facility<select id="facility"></select></label><button id="refresh" class="ghost">Refresh</button></div>
+      </header>
+      <section id="banner" class="banner hidden"></section>
+      <section id="content" aria-live="polite"></section>
+    </main>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script type="module" src="/warehouse-console.js"></script>
+  <script type="module" src="/warehouse-ux.js"></script>
+</body>
+</html>

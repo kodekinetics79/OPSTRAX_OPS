@@ -18,6 +18,9 @@ export function createSynchronousWorkerBridge(workerUrl, workerData = {}, { time
       dataBuffer
     }
   });
+  // The server and active commands own process lifetime; idle provider workers
+  // must not keep completed CLI and test processes alive indefinitely.
+  worker.unref();
 
   function request(method, payload = {}) {
     control.fill(0);

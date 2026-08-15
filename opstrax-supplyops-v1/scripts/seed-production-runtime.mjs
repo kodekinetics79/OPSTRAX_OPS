@@ -2,6 +2,10 @@
 /**
  * seed-production-runtime.mjs — deterministic seed helper for PostgreSQL
  * production-validation runs. This is opt-in and never used by normal startup.
+ *
+ * Standalone invocation owns the DB lifecycle and closes it on completion.
+ * Verification scripts that import this module in-process set
+ * OPSTRAX_SEED_KEEP_DB_OPEN=1 so the shared worker remains usable afterward.
  */
 
 if (String(process.env.OPSTRAX_VALIDATE_SEED || '').trim() !== '1') {
@@ -118,7 +122,8 @@ try {
   seedIfEmpty();
   process.stdout.write(`[seed-production-runtime] Completed at ${nowIso()}\n`);
 } finally {
-  if (typeof db.close === 'function') {
+  const keepDbOpen = String(process.env.OPSTRAX_SEED_KEEP_DB_OPEN || '').trim() === '1';
+  if (!keepDbOpen && typeof db.close === 'function') {
     await db.close();
   }
 }

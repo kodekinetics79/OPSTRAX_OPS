@@ -1,0 +1,10 @@
+name: Deprecated WMS CI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  notice:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Superseded by wms-certification.yml and wms-legacy-regression.yml"
