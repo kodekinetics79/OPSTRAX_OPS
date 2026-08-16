@@ -757,6 +757,8 @@ test('warehouse shell page and drawer render task center details', () => {
     shellState.drawerTab = 'Details';
     shellState.page = 'Warehouse Workflows';
     const html = warehousePage();
+    assert.match(html, /href="\/warehouse\.html"/);
+    assert.match(html, /Open WMS Control Tower/);
     assert.match(html, /Issue-ready requests/);
     assert.match(html, /Warehouse task center/);
     const drawer = buildDrawerModel();

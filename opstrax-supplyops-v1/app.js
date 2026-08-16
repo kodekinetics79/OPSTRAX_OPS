@@ -5114,6 +5114,21 @@ export function warehousePage() {
   const executeTasks = can('execute_warehouse_tasks');
   return `
     ${hero()}
+    <section class="panel module-banner wms-launchpad">
+      <div class="module-banner-copy">
+        <div class="eyebrow">Warehouse Profitability OS</div>
+        <h2>Run the complete warehouse operation</h2>
+        <p>Move from capacity reservation through receiving, placement, quality, allocation, shipping, and 3PL billing in one operational control tower.</p>
+        <div class="module-banner-meta">
+          <span class="status-pill status-ok">Canonical stock synchronized</span>
+          <span class="status-pill status-neutral">Capacity + LPN execution</span>
+          <span class="status-pill status-neutral">3PL revenue evidence</span>
+        </div>
+      </div>
+      <div class="module-banner-actions">
+        <a class="primary wms-launch" href="/warehouse.html">Open WMS Control Tower <span aria-hidden="true">↗</span></a>
+      </div>
+    </section>
     <section class="kpi-grid">
       <div class="panel kpi"><div class="kpi-label">Open workflows</div><div class="kpi-value">${h(summary.openWorkflows ?? 0)}</div><div class="kpi-detail">Ready requests and active tasks.</div></div>
       <div class="panel kpi"><div class="kpi-label">Issue-ready requests</div><div class="kpi-value">${h(summary.issueReadyRequests ?? 0)}</div><div class="kpi-detail">Awaiting task creation.</div></div>
