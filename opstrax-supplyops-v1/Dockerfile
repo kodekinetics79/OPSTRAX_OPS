@@ -16,6 +16,8 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 COPY --from=build --chown=node:node /app/ ./
+RUN mkdir -p /app/data \
+  && chown -R node:node /app
 
 USER node
 EXPOSE 10000
