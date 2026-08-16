@@ -1,0 +1,23 @@
+FROM node:24-bookworm-slim AS build
+
+WORKDIR /app
+
+COPY opstrax-supplyops-v1/package.json ./
+RUN npm install
+
+COPY opstrax-supplyops-v1/ ./
+RUN npm run build \
+  && npm prune --omit=dev \
+  && npm cache clean --force
+
+FROM node:24-bookworm-slim AS runtime
+
+ENV NODE_ENV=production
+WORKDIR /app
+
+COPY --from=build --chown=node:node /app/ ./
+
+USER node
+EXPOSE 10000
+
+CMD ["npm", "start"]
