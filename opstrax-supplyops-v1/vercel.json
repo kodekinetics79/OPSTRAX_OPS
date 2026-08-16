@@ -6,31 +6,31 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://YOUR_RAILWAY_DOMAIN.up.railway.app/api/:path*"
+      "destination": "https://opstrax-ops.onrender.com/api/:path*"
     },
     {
       "source": "/auth/:path*",
-      "destination": "https://YOUR_RAILWAY_DOMAIN.up.railway.app/auth/:path*"
+      "destination": "https://opstrax-ops.onrender.com/auth/:path*"
     },
     {
       "source": "/platform/auth/:path*",
-      "destination": "https://YOUR_RAILWAY_DOMAIN.up.railway.app/platform/auth/:path*"
+      "destination": "https://opstrax-ops.onrender.com/platform/auth/:path*"
     },
     {
       "source": "/platform/login",
-      "destination": "https://YOUR_RAILWAY_DOMAIN.up.railway.app/platform/login"
+      "destination": "https://opstrax-ops.onrender.com/platform/login"
     },
     {
       "source": "/platform/callback",
-      "destination": "https://YOUR_RAILWAY_DOMAIN.up.railway.app/platform/callback"
+      "destination": "https://opstrax-ops.onrender.com/platform/callback"
     },
     {
       "source": "/healthz",
-      "destination": "https://YOUR_RAILWAY_DOMAIN.up.railway.app/healthz"
+      "destination": "https://opstrax-ops.onrender.com/healthz"
     },
     {
       "source": "/healthz/ready",
-      "destination": "https://YOUR_RAILWAY_DOMAIN.up.railway.app/healthz/ready"
+      "destination": "https://opstrax-ops.onrender.com/healthz/ready"
     },
     {
       "source": "/(.*)",
