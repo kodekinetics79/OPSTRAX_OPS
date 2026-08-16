@@ -3952,15 +3952,71 @@ async function loadData() {
       assetDisposals: '/api/assets/disposal-requests',
       ocrStatus: '/api/ocr/status'
     };
+    const endpointKeysByPage = {
+      'Command Center': [
+        'inventorySummary', 'requests', 'warehouseSummary', 'receivingSummary',
+        'procurementSummary', 'procureToPaySummary', 'deviceopsSummary', 'offlineSummary',
+        'exportsSummary', 'integrationsSummary', 'auditSummary', 'documents', 'compliance',
+        'reportsSummary', 'aiSummary', 'invOptSummary', 'assetCustodySummary', 'ocrStatus'
+      ],
+      'Inventory Control': [
+        'inventorySummary', 'inventoryCategories', 'inventoryItems', 'inventoryBalances',
+        'inventoryMovements', 'inventoryAdjustments', 'inventoryBins', 'items', 'labels',
+        'documents', 'audit', 'auditSummary'
+      ],
+      'Warehouse Workflows': [
+        'warehouseSummary', 'warehouseTasks', 'warehouseIssueReadyRequests', 'warehouseBins',
+        'items', 'documents', 'audit'
+      ],
+      'Receiving Center': [
+        'receivingSummary', 'receivingPurchaseOrders', 'receivingSessions', 'receivingMovements',
+        'procurementPurchaseOrders', 'items', 'documents', 'audit'
+      ],
+      'Internal Storefront': ['items', 'requests', 'availableRequestItems', 'warehouseTasks', 'documents', 'audit'],
+      'Barcode & Device Hub': ['deviceopsSummary', 'deviceopsDevices', 'labels', 'audit'],
+      OfflineOps: ['syncBatches', 'conflicts', 'offlineSummary', 'offlineBatches', 'offlineConflicts', 'offlineTasks', 'audit'],
+      'Worker-Safe Mode': ['warehouseTasks', 'receivingSessions', 'offlineBatches', 'offlineConflicts', 'offlineTasks', 'labels'],
+      'Procurement & Purchasing': [
+        'procurementSummary', 'procurementVendors', 'procurementContracts', 'procurementBudgets',
+        'procurementWaivers', 'procurementAdvisory', 'procurementPurchaseRequests',
+        'procurementPurchaseOrders', 'items', 'documents', 'audit'
+      ],
+      'Supplier Governance': ['procurementVendors', 'procurementContracts', 'procurementWaivers', 'procurementAdvisory', 'documents', 'audit'],
+      'Contract Repository': ['procurementContracts', 'procurementVendors', 'documents', 'audit'],
+      'Budget Control': ['procurementBudgets', 'procurementWaivers', 'procurementPurchaseRequests', 'audit'],
+      'Procure-to-Pay Intelligence': [
+        'procureToPaySummary', 'procureToPayInvoices', 'procureToPayRfqs', 'procureToPayQuotes',
+        'procureToPayScorecards', 'ocrStatus', 'documents', 'audit'
+      ],
+      'FinanceSync Export Hub': [
+        'exports', 'exportsSummary', 'exportCandidates', 'exportBatches', 'exportMovements',
+        'exportPurchaseOrders', 'exportReceipts', 'integrationConnections', 'integrationJobs', 'audit'
+      ],
+      'Integration Center': ['integrationsSummary', 'integrationConnections', 'integrationJobs', 'audit'],
+      'Documents & Evidence Vault': ['documents', 'evidence', 'audit', 'auditSummary'],
+      'Audit Black Box': ['audit', 'auditSummary'],
+      'Compliance Center': [
+        'compliance', 'complianceControls', 'complianceEvidence', 'complianceAccessReviews',
+        'complianceRiskRegister', 'complianceIncidents', 'complianceVendorRegister',
+        'complianceAiGovernance', 'complianceSecurityPosture', 'complianceAvailabilityPosture',
+        'documents', 'audit'
+      ],
+      'Asset & Custody Center': ['assetCustodySummary', 'assetList', 'assetMaintenance', 'assetDisposals', 'documents', 'audit'],
+      'Ask OpsTrax AI': ['aiSummary', 'aiRecommendations', 'aiRuns', 'aiAgents', 'audit'],
+      Reports: ['reportsSummary', 'reportsDefinitions', 'reportsRuns'],
+      'Inventory Optimization': ['invOptSummary', 'invOptPlans', 'invOptVariances', 'invOptRecommendations', 'invOptClassifications', 'items', 'audit'],
+      Admin: []
+    };
+    const activeEndpointKeys = new Set(endpointKeysByPage[state.page] || endpointKeysByPage['Command Center']);
     const extra = {};
     const result = await Promise.all(
-      Object.entries(endpointMap).map(async ([key, endpoint]) => {
+      Object.entries(endpointMap).filter(([key]) => activeEndpointKeys.has(key)).map(async ([key, endpoint]) => {
         const data = await safeApi(endpoint);
         extra[key] = data;
       })
     );
     void result;
-    if (can('manage_admin')) {
+    if (state.page === 'Admin' && can('manage_admin')) {
       extra.admin = await api('/api/admin');
     } else {
       extra.admin = null;
@@ -7848,6 +7904,7 @@ if (typeof document !== 'undefined') {
     const action = button.dataset.action;
     if (page) {
       setPage(page);
+      await loadData();
       return;
     }
     if (action === 'refresh') {
@@ -8433,6 +8490,7 @@ if (typeof document !== 'undefined') {
       }
       if (action === 'open-request-from-task') {
         setPage('Internal Storefront');
+        await loadData();
         state.drawerFocus = { type: 'request', id: button.dataset.id };
         await loadRequestDetail(button.dataset.id);
         render();
