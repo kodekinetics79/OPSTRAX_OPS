@@ -2,10 +2,10 @@ FROM node:24-bookworm-slim AS build
 
 WORKDIR /app
 
-COPY opstrax-supplyops-v1/package.json ./
+COPY package.json ./
 RUN npm install
 
-COPY opstrax-supplyops-v1/ ./
+COPY . ./
 RUN npm run build \
   && npm prune --omit=dev \
   && npm cache clean --force
