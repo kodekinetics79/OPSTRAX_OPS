@@ -997,7 +997,7 @@ export function listInventoryBins(context) {
       LEFT JOIN stock_balances sb ON sb.bin_id = b.id
       LEFT JOIN items i ON i.id = sb.item_id
       WHERE b.tenant_id = ?${includeRestricted ? '' : ' AND (i.id IS NULL OR COALESCE(i.controlled, i.restricted, 0) = 0)'}
-      GROUP BY b.id
+      GROUP BY b.id, f.name
       ORDER BY f.name, b.code
     `,
     [context.tenant.id]
@@ -1390,7 +1390,7 @@ export function listInternalRequests(context) {
       JOIN facilities f ON f.id = r.facility_id
       LEFT JOIN request_lines rl ON rl.request_id = r.id AND rl.tenant_id = r.tenant_id
       WHERE r.tenant_id = ? ${scope.sql}
-      GROUP BY r.id
+      GROUP BY r.id, d.name, u.name, f.name
       ORDER BY r.created_at DESC
     `,
     [context.tenant.id, ...scope.params]
@@ -2118,7 +2118,8 @@ export function listIssueReadyRequests(context) {
       LEFT JOIN request_lines rl ON rl.request_id = r.id AND rl.tenant_id = r.tenant_id
       LEFT JOIN warehouse_tasks wt ON wt.request_id = r.id AND wt.tenant_id = r.tenant_id AND wt.status != 'CANCELLED'
       WHERE r.tenant_id = ? AND r.status IN ('APPROVED', 'ISSUE_READY', 'PICKING', 'PARTIALLY_ISSUED') AND wt.id IS NULL${scope.sql}
-      GROUP BY r.id
+      GROUP BY r.id, d.name, u.name, f.name,
+        wt.id, wt.status, wt.task_no, wt.assigned_to_user_id
       ORDER BY r.issue_ready_at DESC, r.created_at DESC
     `,
     [context.tenant.id, ...scope.params]
@@ -2142,7 +2143,7 @@ export function listWarehouseBins(context) {
       LEFT JOIN stock_balances sb ON sb.bin_id = b.id
       LEFT JOIN items i ON i.id = sb.item_id
       WHERE b.tenant_id = ?${includeRestricted ? '' : ' AND (i.id IS NULL OR COALESCE(i.controlled, i.restricted, 0) = 0)'}
-      GROUP BY b.id
+      GROUP BY b.id, f.name
       ORDER BY f.name, b.code
     `,
     [context.tenant.id]
@@ -2180,7 +2181,7 @@ export function listWarehouseTasks(context) {
       LEFT JOIN facilities f ON f.id = wt.facility_id
       LEFT JOIN warehouse_task_lines wtl ON wtl.warehouse_task_id = wt.id AND wtl.tenant_id = wt.tenant_id
       WHERE wt.tenant_id = ?${scope.sql}
-      GROUP BY wt.id
+      GROUP BY wt.id, r.request_no, r.status, d.name, u.name, f.name, assignee.name
       ORDER BY wt.created_at DESC, wt.id DESC
       LIMIT 100
     `,
@@ -5401,7 +5402,7 @@ export function listRfqRequests(context) {
      JOIN users u ON u.id = r.requested_by_user_id
      LEFT JOIN rfq_lines rl ON rl.rfq_request_id = r.id AND rl.tenant_id = r.tenant_id
      WHERE r.tenant_id = ? ${scope.sql}
-     GROUP BY r.id
+     GROUP BY r.id, d.name, f.name, u.name
      ORDER BY r.created_at DESC`,
     [context.tenant.id, ...scope.params]
   );
@@ -5970,7 +5971,7 @@ export function listReceivingPurchaseOrders(context) {
       LEFT JOIN purchase_requests pr ON pr.id = po.source_purchase_request_id
       LEFT JOIN purchase_order_lines pol ON pol.purchase_order_id = po.id AND pol.tenant_id = po.tenant_id
       WHERE po.tenant_id = ? ${scope.sql} AND po.status IN ('ISSUED', 'RECEIVING', 'PARTIALLY_RECEIVED', 'RECEIVED', 'RECEIVED_WITH_EXCEPTIONS')
-      GROUP BY po.id
+      GROUP BY po.id, v.name, v.code, pr.pr_no
       ORDER BY po.created_at DESC, po.id DESC
     `,
     [context.tenant.id, ...scope.params]
@@ -6778,7 +6779,8 @@ function loadExportPurchaseOrders(context, selection = {}) {
       JOIN users u ON u.id = po.created_by_user_id
       LEFT JOIN purchase_order_lines pol ON pol.purchase_order_id = po.id
       WHERE po.tenant_id = ? AND po.status IN ('APPROVED', 'ISSUED')${scoped.sql}
-      GROUP BY po.id
+      GROUP BY po.id, pr.pr_no, pr.accounting_code, pr.status,
+        v.name, v.code, d.name, f.name, u.name
       ORDER BY po.created_at DESC, po.id DESC
     `,
     [context.tenant.id, ...scoped.params]
@@ -6827,7 +6829,7 @@ function loadExportReceipts(context, selection = {}) {
       LEFT JOIN users u ON u.id = rs.started_by_user_id
       LEFT JOIN receive_session_lines rl ON rl.receive_session_id = rs.id
       WHERE rs.tenant_id = ? AND rs.status = 'POSTED'${clauses.length ? ` AND ${clauses.join(' AND ')}` : ''}
-      GROUP BY rs.id
+      GROUP BY rs.id, po.po_no, po.status, v.name, v.code, d.name, f.name, u.name
       ORDER BY rs.created_at DESC, rs.id DESC
     `,
     [context.tenant.id, ...params]
@@ -8010,7 +8012,7 @@ export function listEvidence(context, filters = {}) {
       JOIN users u ON u.id = d.uploaded_by_user_id
       LEFT JOIN evidence_links el ON el.document_id = d.id AND el.tenant_id = d.tenant_id
       WHERE d.tenant_id = ? ${where.length ? `AND ${where.join(' AND ')}` : ''}
-      GROUP BY d.id
+      GROUP BY d.id, u.name
       ORDER BY d.created_at DESC
       LIMIT ${normalized.limit}
     `,

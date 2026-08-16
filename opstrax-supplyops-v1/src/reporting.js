@@ -662,7 +662,7 @@ function reportDataForTenant(definition, context, filters = {}) {
          LEFT JOIN facilities f ON f.id = sb.facility_id
          LEFT JOIN bins b ON b.id = sb.bin_id
          WHERE i.tenant_id = ?
-         GROUP BY i.id
+         GROUP BY i.id, f.name, b.code
          ORDER BY low_stock DESC, i.name ASC`,
         [tenantId]
       );
@@ -675,8 +675,8 @@ function reportDataForTenant(definition, context, filters = {}) {
          LEFT JOIN stock_balances sb ON sb.item_id = i.id AND sb.tenant_id = i.tenant_id
          LEFT JOIN facilities f ON f.id = sb.facility_id
          WHERE i.tenant_id = ?
-         GROUP BY i.id
-         HAVING on_hand <= reorder_point
+         GROUP BY i.id, f.name
+         HAVING COALESCE(SUM(sb.on_hand), 0) <= COALESCE(i.reorder_point, i.min_stock, i.min_qty, 0)
          ORDER BY on_hand ASC, i.name ASC`,
         [tenantId]
       );
@@ -718,12 +718,13 @@ function reportDataForTenant(definition, context, filters = {}) {
     }
     case 'receiving_activity': {
       const rows = selectAll(
-        `SELECT rs.id AS session_id, po.po_no, rs.vendor_name, rs.status, COALESCE(SUM(rsl.qty_received), 0) AS qty_received, COALESCE(SUM(CASE WHEN rsl.qty_short > 0 THEN 1 ELSE 0 END), 0) AS exception_count
+        `SELECT rs.id AS session_id, po.po_no, COALESCE(v.name, '') AS vendor_name, rs.status, COALESCE(SUM(rsl.qty_received), 0) AS qty_received, COALESCE(SUM(CASE WHEN rsl.qty_short > 0 THEN 1 ELSE 0 END), 0) AS exception_count
          FROM receive_sessions rs
          LEFT JOIN receive_session_lines rsl ON rsl.receive_session_id = rs.id AND rsl.tenant_id = rs.tenant_id
          LEFT JOIN purchase_orders po ON po.id = rs.purchase_order_id
+         LEFT JOIN vendors v ON v.id = po.vendor_id AND v.tenant_id = rs.tenant_id
          WHERE rs.tenant_id = ?
-         GROUP BY rs.id
+         GROUP BY rs.id, po.po_no, v.name
          ORDER BY rs.created_at DESC, rs.id DESC
          LIMIT 100`,
         [tenantId]

@@ -1032,3 +1032,131 @@ a:focus-visible{text-decoration:none}
   .shell-topbar{top:10px}
   .module-banner{padding:18px}
 }
+
+/* Enterprise visual system: dimensional glass, restrained motion, and clearer hierarchy. */
+:root{
+  --bg:#eaf0f8;
+  --surface:rgba(255,255,255,.72);
+  --surface-soft:rgba(248,251,255,.88);
+  --accent:#2563eb;
+  --accent-2:#06b6d4;
+  --line:rgba(129,153,190,.20);
+  --shadow:0 22px 52px rgba(24,39,75,.10),0 2px 8px rgba(24,39,75,.05);
+}
+
+body{
+  background:
+    radial-gradient(ellipse at 8% -5%,rgba(37,99,235,.18),transparent 30%),
+    radial-gradient(ellipse at 94% 4%,rgba(6,182,212,.14),transparent 28%),
+    radial-gradient(ellipse at 65% 105%,rgba(124,58,237,.09),transparent 34%),
+    linear-gradient(145deg,#f8fbff 0%,#edf3fa 50%,#e9f0f8 100%);
+}
+body::after{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  opacity:.18;
+  background-image:linear-gradient(rgba(76,110,160,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(76,110,160,.12) 1px,transparent 1px);
+  background-size:52px 52px;
+  mask-image:linear-gradient(to bottom,black,transparent 72%);
+}
+
+.sidebar{
+  background:
+    radial-gradient(circle at 20% 4%,rgba(59,130,246,.25),transparent 24%),
+    radial-gradient(circle at 100% 72%,rgba(6,182,212,.12),transparent 32%),
+    linear-gradient(178deg,rgba(7,16,32,.97),rgba(14,25,48,.96));
+  box-shadow:20px 0 60px rgba(11,24,48,.16),inset -1px 0 rgba(255,255,255,.07);
+}
+.sidebar::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  opacity:.22;
+  background-image:linear-gradient(rgba(255,255,255,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);
+  background-size:34px 34px;
+  mask-image:linear-gradient(to bottom,black,transparent 48%);
+}
+.sidebar>*{position:relative;z-index:1}
+.brand-mark{transform:perspective(320px) rotateY(-8deg);transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s ease}
+.brand-mark:hover{transform:perspective(320px) rotateY(8deg) translateY(-2px);box-shadow:0 18px 38px rgba(37,99,235,.38)}
+.nav-item{position:relative;overflow:hidden}
+.nav-item::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent,rgba(255,255,255,.08),transparent);transform:translateX(-120%);transition:transform .55s ease}
+.nav-item:hover::after{transform:translateX(120%)}
+.nav-item.active{color:#fff;background:linear-gradient(115deg,rgba(37,99,235,.92),rgba(8,145,178,.78));box-shadow:0 14px 34px rgba(37,99,235,.27),inset 0 1px rgba(255,255,255,.25)}
+.nav-item.active .nav-dot{background:#fff;box-shadow:0 0 0 4px rgba(255,255,255,.14)}
+
+.shell-topbar{
+  isolation:isolate;
+  overflow:hidden;
+  background:linear-gradient(135deg,rgba(255,255,255,.82),rgba(244,249,255,.68));
+  border-color:rgba(255,255,255,.72);
+  box-shadow:0 22px 52px rgba(24,39,75,.11),inset 0 1px rgba(255,255,255,.85);
+}
+.shell-topbar::before{
+  content:"";
+  position:absolute;
+  z-index:-1;
+  width:240px;
+  height:240px;
+  right:-70px;
+  top:-120px;
+  border-radius:50%;
+  background:conic-gradient(from 90deg,rgba(37,99,235,.24),rgba(6,182,212,.18),rgba(124,58,237,.14),rgba(37,99,235,.24));
+  filter:blur(12px);
+  animation:orbitGlow 14s linear infinite;
+}
+.topbar-title h1{font-size:clamp(30px,2.2vw,42px);letter-spacing:-.045em}
+.eyebrow{background:linear-gradient(90deg,#1d4ed8,#0891b2);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+.panel,.hero,.rail-card,.strategy-card,.auth-card,.signal-card,.landing-card,.kpi-card{
+  border-color:rgba(255,255,255,.72);
+  box-shadow:var(--shadow),inset 0 1px rgba(255,255,255,.8);
+  transform-style:preserve-3d;
+}
+.panel{position:relative;overflow:hidden;background:linear-gradient(145deg,rgba(255,255,255,.80),rgba(245,249,255,.66))}
+.panel::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(115deg,rgba(255,255,255,.34),transparent 28%,transparent 70%,rgba(89,178,255,.06));
+}
+.panel>*{position:relative}
+.panel:hover{transform:perspective(1000px) translateY(-3px) rotateX(.25deg);box-shadow:0 32px 70px rgba(24,39,75,.14),inset 0 1px rgba(255,255,255,.9)}
+.kpi{isolation:isolate;overflow:hidden}
+.kpi::after{
+  content:"";
+  position:absolute;
+  z-index:-1;
+  width:110px;
+  height:110px;
+  right:-42px;
+  bottom:-52px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(37,99,235,.18),transparent 68%);
+  transition:transform .35s ease;
+}
+.kpi:hover::after{transform:scale(1.35) translate(-8px,-8px)}
+.kpi-value{background:linear-gradient(130deg,#0f172a,#2563eb);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero{position:relative;overflow:hidden;background:linear-gradient(130deg,#07152d 0%,#123b82 48%,#087f87 100%);box-shadow:0 30px 70px rgba(16,49,112,.24)}
+.hero::after{content:"";position:absolute;width:340px;height:340px;right:-100px;top:-160px;border-radius:50%;border:1px solid rgba(255,255,255,.20);box-shadow:0 0 0 38px rgba(255,255,255,.045),0 0 0 82px rgba(255,255,255,.025);animation:floatOrb 8s ease-in-out infinite}
+.hero>*{position:relative;z-index:1}
+
+.primary,.wms-launch{background:linear-gradient(115deg,#1d4ed8,#0891b2);color:#fff;box-shadow:0 12px 26px rgba(37,99,235,.22);border:1px solid rgba(255,255,255,.18)}
+.primary:hover,.wms-launch:hover{box-shadow:0 18px 34px rgba(37,99,235,.32);transform:translateY(-2px)}
+.wms-launch{display:inline-flex;gap:10px;align-items:center;justify-content:center;text-decoration:none;border-radius:14px;padding:13px 17px;font-weight:850;white-space:nowrap;transition:transform .2s ease,box-shadow .2s ease}
+.wms-launch span{transition:transform .2s ease}.wms-launch:hover span{transform:translate(2px,-2px)}
+.wms-launchpad{background:linear-gradient(125deg,rgba(237,246,255,.92),rgba(240,253,250,.76),rgba(255,255,255,.68));border-color:rgba(96,165,250,.22)}
+.status-pill{backdrop-filter:blur(12px);box-shadow:inset 0 1px rgba(255,255,255,.85)}
+.table tbody tr{transition:background .18s ease,transform .18s ease}
+.table tbody tr:hover{background:rgba(219,234,254,.34);transform:translateX(2px)}
+.search-shell input,.icon-button,.session-menu summary{backdrop-filter:blur(14px);background:rgba(255,255,255,.70)}
+
+@keyframes orbitGlow{to{transform:rotate(360deg)}}
+@keyframes floatOrb{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(-18px,18px,0)}}
+
+@media (prefers-reduced-motion:reduce){.shell-topbar::before,.hero::after{animation:none}}

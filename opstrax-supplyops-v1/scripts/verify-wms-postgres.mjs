@@ -13,7 +13,21 @@ try {
   const dbModule = await import('../src/db.js');
   db = dbModule.db;
   const { selectAll, selectOne } = dbModule;
-  const { resolveContext, listInventoryItems } = await import('../src/services.js');
+  const {
+    listEvidence,
+    listExportCandidates,
+    listExports,
+    listInternalRequests,
+    listInventoryBins,
+    listInventoryItems,
+    listIssueReadyRequests,
+    listReceivingPurchaseOrders,
+    listRfqRequests,
+    listWarehouseBins,
+    listWarehouseTasks,
+    resolveContext,
+    runReport
+  } = await import('../src/services.js');
   const { ensureWmsSchema } = await import('../src/wms-schema.js');
   const {
     getWmsControlTower,
@@ -48,6 +62,26 @@ try {
   }));
   context.requestId = 'postgres-wms-certification';
   const facilityId = context.user.facility_id;
+
+  // Exercise the aggregate-backed surfaces loaded by the production shell. SQLite
+  // permits ungrouped joined columns here; PostgreSQL intentionally does not.
+  const bootstrapSurfaces = [
+    listInventoryBins(context),
+    listInternalRequests(context),
+    listIssueReadyRequests(context),
+    listWarehouseBins(context),
+    listWarehouseTasks(context),
+    listRfqRequests(context),
+    listReceivingPurchaseOrders(context),
+    listEvidence(context),
+    listExports(context),
+    listExportCandidates(context)
+  ];
+  assert(bootstrapSurfaces.every((surface) => surface != null), 'Production bootstrap surfaces must load on PostgreSQL');
+  for (const reportKey of ['inventory_stock_position', 'low_stock_reorder_risk', 'receiving_activity']) {
+    const report = runReport(context, { reportKey, format: 'CSV' });
+    assert(report?.run?.status === 'COMPLETED', `${reportKey} report must complete on PostgreSQL`);
+  }
 
   const tower = getWmsControlTower(context, { facilityId });
   assert(Number(tower.capacity.total || 0) > 0, 'WMS capacity must exist on PostgreSQL');

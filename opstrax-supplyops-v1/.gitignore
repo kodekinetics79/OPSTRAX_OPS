@@ -9,4 +9,4 @@ data/evidence/
 .DS_Store
 *.log
 test-results/
-
+artifacts/
